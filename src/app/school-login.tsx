@@ -6,11 +6,12 @@ import { Alert, Platform, Pressable, StyleSheet, Text, View } from "react-native
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SchoolWebView, SchoolWebViewHandle } from "../components/SchoolWebView";
 import { useSchedule } from "../lib/schedule-store";
-import { DEFAULT_SETUP, SchoolSetup, TimetableKind, loadSetup, timetableUrl } from "../lib/school-setup";
+import { DEFAULT_SETUP, SchoolSetup, TimetableKind, loadSetup, saveSetup, timetableUrl } from "../lib/school-setup";
 import { SCHOOL_ENDPOINTS } from "../lib/school-config";
 import { useTheme } from "../lib/theme-context";
-import { parseTimetableHtml } from "../lib/timetable-html";
+import { parseTimetable } from "../lib/timetable-html";
 import { Course } from "../lib/schedule";
+import { Period } from "../lib/time";
 import { Colors, radius } from "../theme";
 
 export default function SchoolLoginScreen() {
@@ -24,8 +25,9 @@ export default function SchoolLoginScreen() {
   const [kind, setKind] = useState<TimetableKind>("STUDENT");
   const [busy, setBusy] = useState(false);
   const [courses, setCourses] = useState<Course[] | null>(null);
+  const [periods, setPeriods] = useState<Period[]>([]);
   const [rawHtml, setRawHtml] = useState("");
-  const [status, setStatus] = useState("请先在下方登录教务系统，再点「抓取课表」");
+  const [status, setStatus] = useState("先在下方登录教务系统，再打开「课表」页面，会自动识别");
 
   useEffect(() => {
     loadSetup().then((s) => {
@@ -34,43 +36,59 @@ export default function SchoolLoginScreen() {
     });
   }, []);
 
+  const handleHtml = (html: string) => {
+    setRawHtml(html);
+    if (!html || html.length < 800 || /统一身份认证|请输入用户名|login\.jsp/i.test(html)) {
+      setStatus("拿到的是登录页，请先在网页里完成登录并打开课表");
+      setCourses(null);
+      return;
+    }
+    const parsed = parseTimetable(html);
+    setCourses(parsed.courses);
+    setPeriods(parsed.periods);
+    setStatus(parsed.courses.length ? `识别到 ${parsed.courses.length} 门课程` : "页面已拿到，但未解析出课程，请点复制 HTML 发给开发者");
+  };
+
   const onMessage = (data: any) => {
     setBusy(false);
     if (data?.type === "error") {
       setStatus("抓取失败：" + String(data.message ?? ""));
       return;
     }
-    if (data?.type !== "html") return;
-    const html = String(data.html ?? "");
-    setRawHtml(html);
-    if (!html || html.length < 800 || /统一身份认证|请输入用户名|login\.jsp/i.test(html)) {
-      setStatus("抓取到的是登录页，请先在网页里完成登录后再试");
-      setCourses(null);
-      return;
+    if (data?.type === "html") handleHtml(String(data.html ?? ""));
+  };
+
+  const onNav = (url: string) => {
+    const m = url.match(/showTimetable\.do\?id=(\d+)[^#]*timetableType=(STUDENT|CLASSES)/i);
+    if (m) {
+      const id = m[1];
+      const k = m[2].toUpperCase() as TimetableKind;
+      setKind(k);
+      const next = { ...setup, [k === "STUDENT" ? "personalId" : "classId"]: id } as SchoolSetup;
+      setSetup(next);
+      saveSetup(next).catch(() => {});
+      setStatus(`识别到${k === "STUDENT" ? "个人" : "班级"}课表（id=${id}），正在读取…`);
+      setTimeout(() => webRef.current?.readHtml(), 900);
     }
-    const parsed = parseTimetableHtml(html);
-    setCourses(parsed);
-    setStatus(parsed.length ? `解析到 ${parsed.length} 门课程` : "页面已抓到，但未解析出课程，可复制 HTML 发给开发者适配");
   };
 
   const fetchTimetable = () => {
-    const url = timetableUrl(setup, kind);
     setBusy(true);
     setStatus("正在抓取…");
-    webRef.current?.fetchTimetable(url);
+    webRef.current?.fetchTimetable(timetableUrl(setup, kind));
     setTimeout(() => setBusy(false), 8000);
   };
 
   const apply = async () => {
     if (!courses?.length) return;
-    applyApi(courses);
-    Alert.alert("已切换到教务课表", `共 ${courses.length} 门课程，已按当前作息展示。`);
+    await applyApi(courses, periods);
+    Alert.alert("已切换到教务课表", `共 ${courses.length} 门课程，已按课表实际节次时间展示。`);
     router.replace("/schedule");
   };
 
   const copyHtml = async () => {
     if (!rawHtml) {
-      Alert.alert("还没有抓取内容", "请先登录并点「抓取课表」。");
+      Alert.alert("还没有抓取内容", "请先登录并打开课表页。");
       return;
     }
     await Clipboard.setStringAsync(rawHtml);
@@ -105,12 +123,10 @@ export default function SchoolLoginScreen() {
       </View>
 
       <View style={{ flex: 1 }}>
-        <SchoolWebView ref={webRef} uri={SCHOOL_ENDPOINTS.authEntry} onMessage={onMessage} />
+        <SchoolWebView ref={webRef} uri={SCHOOL_ENDPOINTS.authEntry} onMessage={onMessage} onNav={onNav} />
       </View>
 
-      {Platform.OS === "web" ? (
-        <Text style={styles.webTip}>网页版无法登录教务；请用手机 APK。{scheme === "dark" ? "" : ""}</Text>
-      ) : null}
+      {Platform.OS === "web" ? <Text style={styles.webTip}>网页版无法登录教务；请用手机 APK。</Text> : null}
     </View>
   );
 }

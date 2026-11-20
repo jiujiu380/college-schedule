@@ -9,13 +9,15 @@ import { PressableScale } from "../components/Anim";
 import { ScreenStatusBar } from "../components/ScreenStatusBar";
 import { useSchedule } from "../lib/schedule-store";
 import { SAMPLE_JSON, parseStaticJson, readPickedFile } from "../lib/static-timetable";
+import { parseTimetable } from "../lib/timetable-html";
 import { useTheme } from "../lib/theme-context";
 import { Colors, radius } from "../theme";
 
 export default function ImportScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { applyStatic, clearStatic, staticMeta, source, courses } = useSchedule();
+  const { applyStatic, applyApi, clearStatic, staticMeta, source, courses } = useSchedule();
+  const [htmlText, setHtmlText] = useState("");
   const { colors, scheme } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [text, setText] = useState("");
@@ -156,6 +158,48 @@ export default function ImportScreen() {
           </PressableScale>
         </View>
       ) : null}
+
+      <Text style={styles.section}>从教务网页导入（无需登录）</Text>
+      <View style={styles.card}>
+        <Text style={styles.cardText}>
+          在浏览器打开教务课表页 → 右键「查看网页源代码」→ 全选复制，粘贴到下面即可离线解析。适用于已保存的课表网页。
+        </Text>
+        <TextInput
+          value={htmlText}
+          onChangeText={setHtmlText}
+          placeholder="粘贴课表网页 HTML 源码…"
+          placeholderTextColor={colors.faint}
+          multiline
+          textAlignVertical="top"
+          style={[styles.textarea, { height: 120, marginTop: 10 }]}
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
+        <View style={styles.btnRow}>
+          <Pressable style={styles.ghostBtn} onPress={async () => {
+            const clip = await Clipboard.getStringAsync();
+            if (clip) setHtmlText(clip);
+          }}>
+            <Ionicons name="clipboard-outline" size={14} color={colors.ink} />
+            <Text style={styles.ghostText}>粘贴</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.ghostBtn, { flex: 2, borderColor: colors.brand, backgroundColor: colors.brandSoft }]}
+            onPress={async () => {
+              const parsed = parseTimetable(htmlText);
+              if (!parsed.courses.length) {
+                Alert.alert("没有解析到课程", "请确认粘贴的是课表页源码（包含 table id=\"timetable\"），也可以直接把文件发给开发者。");
+                return;
+              }
+              await applyApi(parsed.courses, parsed.periods);
+              Alert.alert("导入成功", `共 ${parsed.courses.length} 门课程，已按页面节次时间展示。`);
+              router.replace("/schedule");
+            }}
+          >
+            <Text style={[styles.ghostText, { color: colors.brand, fontWeight: "600" }]}>解析并应用</Text>
+          </Pressable>
+        </View>
+      </View>
 
       <Text style={styles.section}>字段格式</Text>
       <View style={styles.card}>

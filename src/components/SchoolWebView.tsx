@@ -1,18 +1,21 @@
 import React, { forwardRef, useImperativeHandle, useRef } from "react";
 import { WebView } from "react-native-webview";
 
-export type SchoolWebViewHandle = { fetchTimetable: (url: string) => void };
+export type SchoolWebViewHandle = {
+  fetchTimetable: (url: string) => void;
+  readHtml: () => void;
+};
 
 type Props = {
   uri: string;
   onMessage: (data: any) => void;
+  onNav?: (url: string) => void;
   onLoadEnd?: () => void;
 };
 
-// react-native-webview 的类型在 React 19 下推断异常，这里放宽为 any
 const AnyWebView = WebView as unknown as React.ComponentType<any>;
 
-export const SchoolWebView = forwardRef<SchoolWebViewHandle, Props>(function SchoolWebView({ uri, onMessage, onLoadEnd }, ref) {
+export const SchoolWebView = forwardRef<SchoolWebViewHandle, Props>(function SchoolWebView({ uri, onMessage, onNav, onLoadEnd }, ref) {
   const webRef = useRef<any>(null);
 
   useImperativeHandle(ref, () => ({
@@ -22,6 +25,12 @@ export const SchoolWebView = forwardRef<SchoolWebViewHandle, Props>(function Sch
           .then(function(r){ return r.text(); })
           .then(function(t){ window.ReactNativeWebView.postMessage(JSON.stringify({ type: "html", html: t })); })
           .catch(function(e){ window.ReactNativeWebView.postMessage(JSON.stringify({ type: "error", message: String(e) })); });
+      })(); true;`;
+      webRef.current?.injectJavaScript(js);
+    },
+    readHtml: () => {
+      const js = `(function(){
+        window.ReactNativeWebView.postMessage(JSON.stringify({ type: "html", html: document.documentElement.outerHTML, pageUrl: location.href }));
       })(); true;`;
       webRef.current?.injectJavaScript(js);
     },
@@ -38,6 +47,7 @@ export const SchoolWebView = forwardRef<SchoolWebViewHandle, Props>(function Sch
           onMessage({ type: "error", message: "消息解析失败" });
         }
       }}
+      onNavigationStateChange={(s: any) => onNav?.(String(s.url ?? ""))}
       onLoadEnd={onLoadEnd}
       javaScriptEnabled
       domStorageEnabled

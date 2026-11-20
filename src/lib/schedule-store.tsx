@@ -1,15 +1,15 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { Course, DEMO_COURSES, cellsOfWeek, todayCourses } from "./schedule";
 import { Period, TOTAL_WEEKS, weekOf } from "./time";
 import { Season, getPeriods, seasonLabel, seasonOf } from "./season";
-import {
-  StaticMeta,
-  clearStaticTimetable,
-  loadStaticTimetable,
-  saveStaticTimetable,
-} from "./static-timetable";
+import { StaticMeta, clearStaticTimetable, loadStaticTimetable, saveStaticTimetable } from "./static-timetable";
 
 export type ScheduleSource = "demo" | "static" | "api";
+
+const API_CACHE_KEY = "college.api.timetable.v1";
+
+type ApiCache = { courses: Course[]; periods?: Period[]; fetchedAt: string };
 
 type ScheduleValue = {
   courses: Course[];
@@ -25,7 +25,7 @@ type ScheduleValue = {
   source: ScheduleSource;
   staticMeta: StaticMeta | null;
   applyStatic: (courses: Course[], name: string) => Promise<void>;
-  applyApi: (courses: Course[]) => void;
+  applyApi: (courses: Course[], periods?: Period[]) => Promise<void>;
   clearStatic: () => Promise<void>;
 };
 
@@ -35,17 +35,34 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
   const [courses, setCourses] = useState<Course[]>(DEMO_COURSES);
   const [source, setSource] = useState<ScheduleSource>("demo");
   const [staticMeta, setStaticMeta] = useState<StaticMeta | null>(null);
+  const [customPeriods, setCustomPeriods] = useState<Period[] | null>(null);
   const [week, setWeekRaw] = useState<number>(() => Math.min(Math.max(weekOf(new Date()), 1), TOTAL_WEEKS));
   const [season] = useState<Season>(() => seasonOf(new Date()));
 
   useEffect(() => {
     let alive = true;
-    loadStaticTimetable().then((payload) => {
-      if (!alive || !payload) return;
-      setCourses(payload.courses);
-      setSource("static");
-      setStaticMeta(payload.meta);
-    });
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(API_CACHE_KEY);
+        if (raw) {
+          const cached = JSON.parse(raw) as ApiCache;
+          if (alive && cached.courses?.length) {
+            setCourses(cached.courses);
+            setCustomPeriods(cached.periods?.length ? cached.periods : null);
+            setSource("api");
+            return;
+          }
+        }
+      } catch {
+        // ignore
+      }
+      const payload = await loadStaticTimetable();
+      if (alive && payload) {
+        setCourses(payload.courses);
+        setSource("static");
+        setStaticMeta(payload.meta);
+      }
+    })();
     return () => {
       alive = false;
     };
@@ -61,17 +78,22 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
     setSource("static");
   }, []);
 
-  /** 教务接口拉取成功后调用：切换到实时数据 */
-  const applyApi = useCallback((list: Course[]) => {
+  /** 教务接口 / 网页抓取成功后调用 */
+  const applyApi = useCallback(async (list: Course[], tablePeriods?: Period[]) => {
     setCourses(list);
     setSource("api");
     setStaticMeta(null);
+    if (tablePeriods?.length) setCustomPeriods(tablePeriods);
+    const cache: ApiCache = { courses: list, periods: tablePeriods?.length ? tablePeriods : undefined, fetchedAt: new Date().toISOString() };
+    await AsyncStorage.setItem(API_CACHE_KEY, JSON.stringify(cache));
   }, []);
 
   const clearStatic = useCallback(async () => {
     await clearStaticTimetable();
+    await AsyncStorage.removeItem(API_CACHE_KEY);
     setCourses(DEMO_COURSES);
     setStaticMeta(null);
+    setCustomPeriods(null);
     setSource("demo");
   }, []);
 
@@ -89,14 +111,14 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
       byId: (id: string) => courses.find((c) => c.id === id),
       season,
       seasonText: seasonLabel(season),
-      periods: getPeriods(season),
+      periods: customPeriods ?? getPeriods(season),
       source,
       staticMeta,
       applyStatic,
       applyApi,
       clearStatic,
     };
-  }, [courses, week, season, source, staticMeta, applyStatic, applyApi, clearStatic, setWeek]);
+  }, [courses, week, season, customPeriods, source, staticMeta, applyStatic, applyApi, clearStatic, setWeek]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

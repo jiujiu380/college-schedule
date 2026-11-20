@@ -1,138 +1,137 @@
 import { Course } from "./schedule";
+import { Period } from "./time";
+
+export type ParsedTimetable = {
+  courses: Course[];
+  periods: Period[];
+  title?: string;
+};
 
 /**
- * 解析教务课表页面 HTML。
- * 教务系统表格结构可能随版本变化，这里按“行=节次、列=星期”的通用结构做容错解析：
- * - 自动挑选含“星期/周一”且单元格最多的表格；
- * - 支持 colspan / rowspan 展开；
- * - 课程格内通常为：课程名 / 教师 / 地点 / 周次（用 <br> 或换行分隔）。
+ * 解析内蒙古农业大学教务系统课表页（showTimetable.do）HTML。
+ * 表格结构：<table id="timetable">，行为“第N节”，列为周一~周日，
+ * 单元格 id="星期-节次"，内容形如：
+ *   <<高等数学1>>;;1<br>耕学楼A307<br>陈红红<br>3-4,7-17<br>理论学时
+ * 同一单元格可能包含多门课（用 <wbr> 分隔）。
  */
-export function parseTimetableHtml(html: string): Course[] {
-  const clean = String(html)
-    .replace(/<script[\s\S]*?<\/script>/gi, "")
-    .replace(/<style[\s\S]*?<\/style>/gi, "")
-    .replace(/<!--[\s\S]*?-->/g, "");
+export function parseTimetable(html: string): ParsedTimetable {
+  const table = html.match(/<table[^>]*id=["']timetable["'][\s\S]*?<\/table>/i)?.[0];
+  if (!table) return { courses: [], periods: [] };
 
-  const tables = [...clean.matchAll(/<table[\s\S]*?<\/table>/gi)].map((m) => m[0]);
-  if (!tables.length) return [];
+  const rows = [...table.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)].map((m) => m[1]);
+  const periods: Period[] = [];
+  const entries: { weekday: number; period: number; name: string; teacher?: string; location?: string; weeks: number[] }[] = [];
 
-  const scored = tables
-    .map((t) => ({ t, score: (t.match(/<td/gi) ?? []).length + (/星期|周一|星期一/.test(t) ? 50 : 0) }))
-    .sort((a, b) => b.score - a.score);
+  const text = (s: string) =>
+    s
+      .replace(/<wbr\s*\/?>/gi, "")
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<[^>]+>/g, "")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&amp;/g, "&")
+      .replace(/&nbsp;/g, " ")
+      .replace(/[ \t\u00a0]+/g, " ");
 
-  for (const cand of scored) {
-    const courses = parseTable(cand.t);
-    if (courses.length) return courses;
-  }
-  return [];
-}
+  for (const row of rows) {
+    const th = row.match(/<th[^>]*>([\s\S]*?)<\/th>/i)?.[1] ?? "";
+    const pm = th.match(/第\s*(\d{1,2})\s*节/);
+    if (!pm) continue;
+    const no = Number(pm[1]);
+    const tm = th.replace(/<br\s*\/?>/gi, "|").match(/(\d{1,2}:\d{2})\s*\|\s*[┆|]\s*\|\s*(\d{1,2}:\d{2})/);
+    if (tm) periods.push({ no, start: tm[1], end: tm[2] });
 
-function textOf(cell: string): string {
-  return cell
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<[^>]+>/g, "")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/[ \t\u00a0]+/g, " ")
-    .trim();
-}
+    const cells = [...row.matchAll(/<td[^>]*id=["'](\d)-([\d]+)["'][^>]*>([\s\S]*?)<\/td>/gi)];
+    for (const c of cells) {
+      const weekday = Number(c[1]);
+      const lines = text(c[3])
+        .split("\n")
+        .map((s) => s.trim())
+        .filter(Boolean);
 
-function parseTable(tableHtml: string): Course[] {
-  const rows = [...tableHtml.matchAll(/<tr[\s\S]*?<\/tr>/gi)].map((m) => m[0]);
-  if (!rows.length) return [];
-
-  const grid: string[][] = [];
-  for (let r = 0; r < rows.length; r++) {
-    const cells = [...rows[r].matchAll(/<t[dh]([^>]*)>([\s\S]*?)<\/t[dh]>/gi)];
-    grid[r] = grid[r] ?? [];
-    let c = 0;
-    for (const cell of cells) {
-      const attrs = cell[1];
-      const colspan = Number((attrs.match(/colspan\s*=\s*["']?(\d+)/i) ?? [])[1] ?? 1);
-      const rowspan = Number((attrs.match(/rowspan\s*=\s*["']?(\d+)/i) ?? [])[1] ?? 1);
-      while (grid[r][c] !== undefined) c++;
-      const text = textOf(cell[2]);
-      for (let dr = 0; dr < rowspan; dr++) {
-        for (let dc = 0; dc < colspan; dc++) {
-          grid[r + dr] = grid[r + dr] ?? [];
-          grid[r + dr][c + dc] = text;
+      const chunks: string[][] = [];
+      let cur: string[] | null = null;
+      for (const line of lines) {
+        const m = line.match(/<<\s*([^>]+?)\s*>>/);
+        if (m) {
+          if (cur) chunks.push(cur);
+          cur = [m[1]];
+          const rest = line.replace(/^.*?>>/, "").replace(/^[;；\s]+/, "");
+          if (rest) cur.push(rest);
+        } else if (cur) {
+          cur.push(line);
         }
       }
-      c += colspan;
+      if (cur) chunks.push(cur);
+
+      for (const chunk of chunks) {
+        const name = chunk[0].trim();
+        if (!name) continue;
+        const rest = chunk.slice(1).filter((s) => s && !/学时$/.test(s));
+        const weekLine = rest.find((s) => /周/.test(s) || (/[\d]/.test(s) && /[,\-~，]/.test(s))) ?? "";
+        const weeks = parseWeeks(weekLine);
+        const teacher = rest.find((s) => /^[\u4e00-\u9fa5]{2,4}$/.test(s) && !/学时/.test(s));
+        const location = rest.find((s) => /楼|室|馆|场|中心|实训/.test(s))?.replace(/^@/, "");
+        entries.push({ weekday, period: no, name, teacher, location, weeks });
+      }
     }
   }
 
-  const headerIdx = grid.findIndex((row) => row.some((cell) => /星期|周一|星期一/.test(cell ?? "")));
-  if (headerIdx < 0) return [];
+  const groups = new Map<string, { weekday: number; name: string; teacher?: string; location?: string; weeks: number[]; periods: number[] }>();
+  for (const e of entries) {
+    const key = [e.weekday, e.name, e.teacher ?? "", e.location ?? "", e.weeks.join(",")].join("|");
+    const g = groups.get(key) ?? { ...e, periods: [] };
+    g.periods.push(e.period);
+    groups.set(key, g);
+  }
 
-  const header = grid[headerIdx];
-  const dayCols = header.map((cell, i) => ({ cell, i })).filter((x) => /周[一二三四五六日天]|星期/.test(x.cell ?? ""));
-  if (!dayCols.length) return [];
-
-  const firstDayCol = dayCols[0].i;
   const courses: Course[] = [];
-  let seq = 0;
-
-  for (let r = headerIdx + 1; r < grid.length; r++) {
-    const row = grid[r] ?? [];
-    const label = row.slice(0, firstDayCol).join(" ");
-    const periods = parsePeriods(label);
-    if (!periods) continue;
-    dayCols.forEach((dc, idx) => {
-      const text = row[dc.i];
-      if (!text || /^(无|空|—|-)?$/.test(text)) return;
-      const chunks = text.split(/\n+/).map((s) => s.trim()).filter(Boolean);
-      if (!chunks.length) return;
-      if (/^(午休|中午|休息)$/.test(chunks[0])) return;
-
-      const name = chunks[0];
-      let weeks: number[] = rangeWeeks(1, 20);
-      const weekMatch = text.match(/(\d{1,2})\s*[-~至]\s*(\d{1,2})\s*周/);
-      if (weekMatch) {
-        const odd = /单周/.test(text);
-        const even = /双周/.test(text);
-        weeks = rangeWeeks(Number(weekMatch[1]), Number(weekMatch[2]), odd ? "odd" : even ? "even" : undefined);
+  let id = 0;
+  for (const g of groups.values()) {
+    const ps = Array.from(new Set(g.periods)).sort((a, b) => a - b);
+    let start = ps[0];
+    let prev = ps[0];
+    for (let i = 1; i <= ps.length; i++) {
+      const p = ps[i];
+      if (p === prev + 1) {
+        prev = p;
+        continue;
       }
-      const teacher = chunks.find((s) => /^[\u4e00-\u9fa5]{2,4}$/.test(s) && s !== name) ?? undefined;
-      const location = chunks.find((s) => /楼|室|馆|场|中心|教学/.test(s) && s !== name)?.replace(/^@/, "");
       courses.push({
-        id: `html-${++seq}`,
-        name,
-        teacher,
-        location,
-        weekday: idx + 1,
-        startPeriod: periods.start,
-        endPeriod: periods.end,
-        weeks,
+        id: `html-${++id}`,
+        name: g.name,
+        teacher: g.teacher,
+        location: g.location,
+        weekday: g.weekday,
+        startPeriod: start,
+        endPeriod: prev,
+        weeks: g.weeks.length ? g.weeks : rangeWeeks(1, 20),
       });
-    });
+      if (p === undefined) break;
+      start = p;
+      prev = p;
+    }
   }
-  return courses;
+
+  const title = html.match(/<title>([\s\S]*?)<\/title>/i)?.[1]?.trim();
+  return { courses, periods: periods.sort((a, b) => a.no - b.no), title };
 }
 
-function parsePeriods(label: string): { start: number; end: number } | null {
-  const m = label.match(/(\d{1,2})\s*[-~]\s*(\d{1,2})/);
-  if (m) {
-    const start = Number(m[1]);
-    const end = Number(m[2]);
-    if (start >= 1 && end <= 12 && start <= end) return { start, end };
+export function parseWeeks(s: string): number[] {
+  const out = new Set<number>();
+  const cleaned = s.replace(/周/g, "");
+  for (const part of cleaned.split(/[,，、]/)) {
+    const m = part.trim().match(/^(\d{1,2})(?:\s*[-~至]\s*(\d{1,2}))?$/);
+    if (!m) continue;
+    const a = Number(m[1]);
+    const b = m[2] ? Number(m[2]) : a;
+    for (let w = a; w <= b; w++) out.add(w);
   }
-  const single = label.match(/^\D*(\d{1,2})\D*$/);
-  if (single) {
-    const n = Number(single[1]);
-    if (n >= 1 && n <= 12) return { start: n, end: n };
-  }
-  return null;
+  return Array.from(out).sort((a, b) => a - b);
 }
 
-function rangeWeeks(from: number, to: number, parity?: "odd" | "even"): number[] {
+function rangeWeeks(from: number, to: number): number[] {
   const out: number[] = [];
-  for (let w = from; w <= to; w++) {
-    if (parity === "odd" && w % 2 === 0) continue;
-    if (parity === "even" && w % 2 === 1) continue;
-    out.push(w);
-  }
+  for (let w = from; w <= to; w++) out.push(w);
   return out;
 }
