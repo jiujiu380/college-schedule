@@ -1,13 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
-import { Alert, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
+import { Alert, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScreenStatusBar } from "../../components/ScreenStatusBar";
 import { useAuth } from "../../lib/auth";
-import { DEFAULT_CONFIG, SchoolConfig, loadConfig, saveConfig } from "../../lib/config";
 import { cancelAllReminders, ensureNotifyPermission, isNotifyEnabled, scheduleClassReminders, setNotifyEnabled } from "../../lib/notifications";
 import { useSchedule } from "../../lib/schedule-store";
+import { DEFAULT_SETUP, SchoolSetup, loadSetup } from "../../lib/school-setup";
 import { useTheme } from "../../lib/theme-context";
 import { useUpdate } from "../../lib/update-store";
 import { Colors, ThemeMode, radius } from "../../theme";
@@ -20,38 +20,14 @@ export default function SettingsScreen() {
   const { mode, setMode, colors, scheme } = useTheme();
   const { result: updateResult, checking: updateChecking } = useUpdate();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const [cfg, setCfg] = useState<SchoolConfig>(DEFAULT_CONFIG);
+  const [setup, setSetup] = useState<SchoolSetup>(DEFAULT_SETUP);
   const [notify, setNotify] = useState(false);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    loadConfig().then(setCfg);
+    loadSetup().then(setSetup);
     isNotifyEnabled().then(setNotify);
   }, []);
-
-  const update = (patch: Partial<SchoolConfig>) => setCfg((prev) => ({ ...prev, ...patch }));
-
-  const onSave = async () => {
-    await saveConfig({ loginUrl: cfg.loginUrl.trim(), scheduleUrl: cfg.scheduleUrl.trim(), accountType: cfg.accountType || "student" });
-    Alert.alert("已保存", "数据源配置已保存在本机。");
-  };
-
-  const onTest = async () => {
-    const url = cfg.loginUrl.trim();
-    if (!url) {
-      Alert.alert("请先填写登录地址", "例如 http://zyjwxt.imau.edu.cn/jwglxt");
-      return;
-    }
-    try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 8000);
-      const res = await fetch(url, { method: "GET", signal: controller.signal });
-      clearTimeout(timer);
-      Alert.alert("连接成功", `教务系统返回 HTTP ${res.status}，可在校园网内继续接入登录流程。`);
-    } catch {
-      Alert.alert("连接失败", "无法访问该地址。教务系统仅限校园网 / VPN 访问，请连接学校网络后重试；网页版还会受到浏览器跨域限制，建议用手机端测试。");
-    }
-  };
 
   const onToggleNotify = async (next: boolean) => {
     if (Platform.OS === "web") {
@@ -88,13 +64,6 @@ export default function SettingsScreen() {
     ]);
   };
 
-  const Field = ({ label, value, onChangeText, placeholder, last }: { label: string; value: string; onChangeText: (v: string) => void; placeholder: string; last?: boolean }) => (
-    <View style={[styles.field, !last && styles.divider]}>
-      <Text style={styles.fieldLabel}>{label}</Text>
-      <TextInput value={value} onChangeText={onChangeText} placeholder={placeholder} autoCapitalize="none" autoCorrect={false} placeholderTextColor={colors.faint} style={styles.input} />
-    </View>
-  );
-
   const Row = ({ icon, label, value, onPress, last }: { icon: keyof typeof Ionicons.glyphMap; label: string; value?: string; onPress?: () => void; last?: boolean }) => (
     <Pressable style={[styles.row, !last && styles.divider]} onPress={onPress}>
       <Ionicons name={icon} size={17} color={colors.sub} />
@@ -119,8 +88,8 @@ export default function SettingsScreen() {
         <View style={styles.profile}>
           <View style={styles.avatar}><Ionicons name="person" size={22} color="#FFFFFF" /></View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.name}>{studentId ?? "未登录"}</Text>
-            <Text style={styles.role}>{status === "demo" ? "演示账号 · 示例数据" : status === "authed" ? "已连接教务系统" : "未登录"}</Text>
+            <Text style={styles.name}>{setup.studentId || studentId || "未设置学号"}</Text>
+            <Text style={styles.role}>{status === "demo" ? "演示账号 · 示例数据" : status === "authed" ? "已连接教务系统" : "未登录教务"}</Text>
           </View>
           <Text style={[styles.statusTag, status === "demo" && { color: colors.warnText, borderColor: colors.warnBorder }, status === "guest" && { color: colors.faint, borderColor: colors.line }]}>
             {status === "demo" ? "DEMO" : status === "authed" ? "ONLINE" : "OFFLINE"}
@@ -128,18 +97,32 @@ export default function SettingsScreen() {
         </View>
       </View>
 
-      <Text style={styles.section}>教务数据源</Text>
+      <Text style={styles.section}>教务初始化</Text>
       <View style={styles.card}>
-        <Field label="登录地址" value={cfg.loginUrl} onChangeText={(v) => update({ loginUrl: v })} placeholder="http://zyjwxt.imau.edu.cn/jwglxt" />
-        <Field label="课表接口" value={cfg.scheduleUrl} onChangeText={(v) => update({ scheduleUrl: v })} placeholder="…/kbcx/xskbcx_cxXsgrkb.html" last />
-        <View style={styles.tipRow}>
-          <Ionicons name="information-circle-outline" size={13} color={colors.faint} />
-          <Text style={styles.tip}>当前使用演示数据；教务系统需在校园网或 VPN 下访问，接入后自动切换为真实课表</Text>
+        <View style={[styles.row, styles.divider]}>
+          <Ionicons name="person-outline" size={17} color={colors.sub} />
+          <Text style={styles.rowLabel}>个人课表 ID</Text>
+          <Text style={styles.rowValue}>{setup.personalId || "未设置"}</Text>
+        </View>
+        <View style={[styles.row, styles.divider]}>
+          <Ionicons name="people-outline" size={17} color={colors.sub} />
+          <Text style={styles.rowLabel}>班级课表 ID</Text>
+          <Text style={styles.rowValue}>{setup.classId || "未设置"}</Text>
+        </View>
+        <View style={[styles.row, styles.divider]}>
+          <Ionicons name="calendar-outline" size={17} color={colors.sub} />
+          <Text style={styles.rowLabel}>学年 / 学期</Text>
+          <Text style={styles.rowValue}>{setup.yearId} / {setup.termId}</Text>
         </View>
         <View style={{ flexDirection: "row", gap: 10, margin: 14 }}>
-          <Pressable style={[styles.saveBtn, { flex: 1, margin: 0 }]} onPress={onSave}><Text style={styles.saveText}>保存</Text></Pressable>
-          <Pressable style={styles.testBtn} onPress={onTest}><Text style={styles.testText}>测试连通性</Text></Pressable>
+          <Pressable style={[styles.saveBtn, { flex: 1, margin: 0 }]} onPress={() => router.push("/setup")}>
+            <Text style={styles.saveText}>初始化设置</Text>
+          </Pressable>
+          <Pressable style={styles.testBtn} onPress={() => router.push("/school-login")}>
+            <Text style={styles.testText}>登录抓取</Text>
+          </Pressable>
         </View>
+        <Text style={styles.tip}>参数由学校教务系统提供，应用自动拼接课表地址，无需填写任何接口地址。教务系统仅限校园网 / VPN 访问。</Text>
       </View>
 
       <Text style={styles.section}>提醒与作息</Text>
@@ -210,12 +193,8 @@ const makeStyles = (colors: Colors) =>
     role: { fontSize: 11.5, color: colors.sub, marginTop: 4 },
     statusTag: { fontSize: 10, fontWeight: "600", color: colors.success, borderWidth: 1, borderColor: colors.success, borderRadius: 3, paddingHorizontal: 6, paddingVertical: 2 },
     section: { fontSize: 12, color: colors.faint, marginTop: 22, marginBottom: 2, marginLeft: 18 },
-    field: { paddingHorizontal: 14, paddingVertical: 12 },
-    fieldLabel: { fontSize: 11.5, color: colors.sub, marginBottom: 6 },
-    input: { height: 38, borderWidth: 1, borderColor: colors.fieldBorder, borderRadius: radius.sm, paddingHorizontal: 10, fontSize: 12, color: colors.ink, backgroundColor: colors.fieldBg },
     divider: { borderBottomWidth: 1, borderBottomColor: colors.line },
-    tipRow: { flexDirection: "row", gap: 5, paddingHorizontal: 14, paddingTop: 10, alignItems: "flex-start" },
-    tip: { flex: 1, fontSize: 11, color: colors.faint, lineHeight: 16 },
+    tip: { fontSize: 11, color: colors.faint, lineHeight: 16, paddingHorizontal: 14, paddingBottom: 14 },
     saveBtn: { height: 40, borderRadius: radius.sm, backgroundColor: colors.brand, alignItems: "center", justifyContent: "center" },
     saveText: { color: "#FFFFFF", fontSize: 13.5, fontWeight: "600" },
     testBtn: { flex: 1, height: 40, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.fieldBorder, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface },
