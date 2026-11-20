@@ -10,13 +10,14 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    env:
+      GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4096m -Dorg.gradle.daemon=false"
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
 
       - uses: actions/setup-java@v4
         with:
@@ -24,13 +25,13 @@ jobs:
           java-version: 17
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install --no-audit --no-fund
 
       - name: Generate native project
         run: npx expo prebuild --platform android --no-install
 
       - name: Build release APK
-        run: cd android && chmod +x gradlew && ./gradlew assembleRelease --no-daemon
+        run: cd android && chmod +x gradlew && ./gradlew assembleRelease --no-daemon --stacktrace
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -55,26 +56,3 @@ jobs:
             - 安装前请允许「未知来源」
             - 应用内「我的 → 检查更新」会读取 Releases 最新版本
           files: android/app/build/outputs/apk/release/app-release.apk
-
-  web:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Export web build
-        run: npx expo export --platform web
-
-      - name: Upload web build
-        uses: actions/upload-artifact@v4
-        with:
-          name: college-schedule-web
-          path: dist
-          if-no-files-found: error
