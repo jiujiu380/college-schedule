@@ -42,6 +42,9 @@
     "plugins": [
       "expo-router",
       [
+        "./plugins/withAndroidBuildSpeed"
+      ],
+      [
         "expo-notifications",
         {
           "icon": "./assets/icon.png",
