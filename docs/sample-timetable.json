@@ -1,0 +1,60 @@
+{
+  "name": "2026 秋季学期（静态备份）",
+  "courses": [
+    {
+      "name": "高等数学 A(2)",
+      "teacher": "张伟",
+      "location": "致远楼 302",
+      "weekday": "周一",
+      "periods": "1-2",
+      "weeks": "1-16",
+      "credit": 5
+    },
+    {
+      "name": "数据结构",
+      "teacher": "陈晨",
+      "location": "信息楼 401",
+      "weekday": 2,
+      "startPeriod": 1,
+      "endPeriod": 2,
+      "weeks": "1-17",
+      "credit": 4
+    },
+    {
+      "name": "操作系统",
+      "teacher": "何静",
+      "location": "信息楼 403",
+      "weekday": "周五",
+      "periods": "3-4",
+      "weeks": "1-16",
+      "credit": 3.5
+    },
+    {
+      "name": "计算机网络",
+      "teacher": "吴迪",
+      "location": "信息楼 402",
+      "weekday": "周四",
+      "periods": "5-6",
+      "weeks": "1-16",
+      "credit": 3.5
+    },
+    {
+      "name": "创新创业实践",
+      "teacher": "马超",
+      "location": "创客空间",
+      "weekday": "周五",
+      "periods": "7-8",
+      "weeks": "4-16",
+      "credit": 1
+    },
+    {
+      "name": "大学体育 3",
+      "teacher": "肖骏",
+      "location": "体育场馆 20",
+      "weekday": "周六",
+      "periods": "3-4",
+      "weeks": "1-16",
+      "credit": 1
+    }
+  ]
+}
