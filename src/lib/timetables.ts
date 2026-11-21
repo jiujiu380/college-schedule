@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Course, DEMO_COURSES } from "./schedule";
+import { Course } from "./schedule";
 import { Period, TOTAL_WEEKS } from "./time";
 import { PERIODS_AUTUMN } from "./season";
 
@@ -21,6 +21,7 @@ export type Timetable = {
   ui: TableUi;
   createdAt: string;
   updatedAt: string;
+  source?: "demo" | "import" | "api";
 };
 
 const KEY = "college.timetables.v1";
@@ -30,9 +31,9 @@ export const DEFAULT_UI: TableUi = { rowHeight: 100, radius: 3, opacity: 1, divi
 
 export const DEMO_TABLES: Timetable[] = [
   {
-    id: "demo-personal",
+    id: "local-1",
     name: "我的课表",
-    courses: DEMO_COURSES,
+    courses: [],
     periods: PERIODS_AUTUMN,
     totalWeeks: TOTAL_WEEKS,
     startDate: "2026-09-07",
@@ -40,6 +41,7 @@ export const DEMO_TABLES: Timetable[] = [
     ui: DEFAULT_UI,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
+    source: "demo",
   },
 ];
 
@@ -77,6 +79,7 @@ export function newTable(name: string, courses: Course[] = [], periods?: Period[
     ui: DEFAULT_UI,
     createdAt: now,
     updatedAt: now,
+    source: "demo",
   };
 }
 

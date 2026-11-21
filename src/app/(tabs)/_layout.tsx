@@ -1,15 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Redirect, Tabs } from "expo-router";
+import { Tabs } from "expo-router";
 import React from "react";
 import { Platform } from "react-native";
-import { useAuth } from "../../lib/auth";
 import { useTheme } from "../../lib/theme-context";
 
 export default function TabLayout() {
-  const { status } = useAuth();
   const { colors } = useTheme();
-  if (status === "loading") return null;
-  if (status === "guest") return <Redirect href="/login" />;
 
   return (
     <Tabs

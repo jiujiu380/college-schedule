@@ -6,11 +6,9 @@ export type Period = { no: number; start: string; end: string };
 export const ROW_GROUPS: { key: string; label: string; periods: number[] }[] = [
   { key: "1-2", label: "1-2", periods: [1, 2] },
   { key: "3-4", label: "3-4", periods: [3, 4] },
-  { key: "noon", label: "中午", periods: [] },
   { key: "5-6", label: "5-6", periods: [5, 6] },
   { key: "7-8", label: "7-8", periods: [7, 8] },
   { key: "9-10", label: "9-10", periods: [9, 10] },
-  { key: "11-12", label: "11-12", periods: [11, 12] },
 ];
 
 export const TOTAL_WEEKS = 20;

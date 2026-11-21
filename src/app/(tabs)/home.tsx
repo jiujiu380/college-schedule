@@ -5,171 +5,148 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { FadeIn } from "../../components/Anim";
 import { ScreenStatusBar } from "../../components/ScreenStatusBar";
-import { useAuth } from "../../lib/auth";
 import { currentNow } from "../../lib/clock";
 import { useSchedule } from "../../lib/schedule-store";
 import { useTheme } from "../../lib/theme-context";
-import { useUpdate } from "../../lib/update-store";
 import { currentPeriodNo, formatToday, todayWeekday } from "../../lib/time";
-import { Colors, radius } from "../../theme";
+import { Colors } from "../../theme";
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { studentId } = useAuth();
-  const { courses, week, periods, source } = useSchedule();
-  const { result: updateResult } = useUpdate();
   const { colors, scheme } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  const { courses, week, periods, activeTable } = useSchedule();
   const today = todayWeekday();
-  const current = currentPeriodNo(periods, currentNow());
+  const now = currentNow();
+  const current = currentPeriodNo(periods, now);
 
   const todayList = useMemo(
     () => courses.filter((c) => c.weekday === today && c.weeks.includes(week)).sort((a, b) => a.startPeriod - b.startPeriod),
     [courses, today, week],
   );
-  const weekList = useMemo(() => courses.filter((c) => c.weeks.includes(week)), [courses, week]);
-  const credits = weekList.reduce((sum, c) => sum + (c.credit ?? 0), 0);
-
-  const Stat = ({ label, value, unit }: { label: string; value: string; unit: string }) => (
-    <View style={{ flex: 1, alignItems: "center" }}>
-      <Text style={styles.statValue}>
-        {value}
-        <Text style={styles.statUnit}> {unit}</Text>
-      </Text>
-      <Text style={styles.statLabel}>{label}</Text>
-    </View>
-  );
+  const weekCount = useMemo(() => courses.filter((c) => c.weeks.includes(week)).length, [courses, week]);
+  const nextCourse = todayList.find((c) => c.endPeriod >= (current ?? 0));
 
   return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: colors.bg }}
-      contentContainerStyle={{ paddingTop: insets.top + 10, paddingBottom: 30 }}
-      showsVerticalScrollIndicator={false}
-    >
+    <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ paddingTop: insets.top + 14, paddingBottom: 30 }} showsVerticalScrollIndicator={false}>
       <ScreenStatusBar style={scheme === "dark" ? "light" : "dark"} />
 
       <FadeIn>
         <View style={styles.header}>
-          <Text style={styles.title}>主站</Text>
           <Text style={styles.date}>{formatToday()}</Text>
+          <Text style={styles.title}>今天</Text>
+          <View style={styles.metaRow}>
+            <Text style={styles.meta}>{activeTable.name} · 第 {week} 周</Text>
+            <Text style={styles.metaDot}>·</Text>
+            <Text style={styles.meta}>{todayList.length} 节课</Text>
+          </View>
         </View>
       </FadeIn>
 
-      {updateResult?.status === "available" ? (
-        <FadeIn delay={30}>
-          <Pressable style={styles.updateBar} onPress={() => router.push("/update")}>
-            <Ionicons name="arrow-up-circle" size={16} color={colors.brand} />
-            <Text style={styles.updateText}>发现新版本 v{updateResult.latest}</Text>
-            <Text style={styles.updateAction}>去更新</Text>
+      {nextCourse ? (
+        <FadeIn delay={50}>
+          <Pressable style={styles.nextCard} onPress={() => router.push(`/course/${nextCourse.id}`)}>
+            <View style={styles.nextHead}>
+              <View style={styles.liveDot} />
+              <Text style={styles.nextLabel}>{current && nextCourse.startPeriod <= current ? "正在上课" : "下一节"}</Text>
+              <Text style={styles.nextTime}>{periods[nextCourse.startPeriod - 1]?.start} - {periods[nextCourse.endPeriod - 1]?.end}</Text>
+            </View>
+            <Text style={styles.nextName}>{nextCourse.name}</Text>
+            <Text style={styles.nextMeta}>{nextCourse.location ?? "地点待定"} · {nextCourse.teacher ?? "教师待定"}</Text>
           </Pressable>
         </FadeIn>
       ) : null}
 
-      <FadeIn delay={60}>
-        <View style={styles.stats}>
-          <Stat label="本周课程" value={String(weekList.length)} unit="节" />
-          <View style={styles.statDivider} />
-          <Stat label="本周学分" value={credits.toFixed(1)} unit="分" />
-          <View style={styles.statDivider} />
-          <Stat label="当前周次" value={String(week)} unit="周" />
-        </View>
-      </FadeIn>
-
-      <FadeIn delay={120}>
+      <FadeIn delay={100}>
         <View style={styles.sectionHead}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <Text style={styles.sectionTitle}>今日课程</Text>
-            {source === "static" ? <Text style={styles.staticTag}>静态数据</Text> : null}
-          </View>
-          <Text style={styles.sectionMore}>{studentId ?? ""}</Text>
+          <Text style={styles.sectionTitle}>今日课程</Text>
+          <Text style={styles.sectionMore}>本周 {weekCount} 节</Text>
         </View>
 
-        <View style={styles.list}>
-          {todayList.length === 0 ? (
-            <View style={styles.empty}>
-              <Text style={styles.emptyText}>今天没有课程安排</Text>
-            </View>
-          ) : (
-            todayList.map((c, idx) => {
+        {todayList.length === 0 ? (
+          <View style={styles.emptyCard}>
+            <Ionicons name="cafe-outline" size={22} color={colors.faint} />
+            <Text style={styles.emptyText}>{courses.length ? "今天没有课，休息一下" : "还没有课表，先去导入一份"}</Text>
+            {courses.length === 0 ? (
+              <Pressable style={styles.importBtn} onPress={() => router.push("/import")}>
+                <Text style={styles.importText}>导入课表</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        ) : (
+          <View style={styles.list}>
+            {todayList.map((c, i) => {
               const active = current !== null && c.startPeriod <= current && c.endPeriod >= current;
               return (
-                <Pressable key={c.id} onPress={() => router.push(`/course/${c.id}`)} style={[styles.row, idx !== todayList.length - 1 && styles.rowBorder]}>
+                <Pressable key={c.id} onPress={() => router.push(`/course/${c.id}`)} style={[styles.row, i !== todayList.length - 1 && styles.rowBorder]}>
                   <View style={styles.timeCol}>
                     <Text style={[styles.timeStart, active && { color: colors.brand }]}>{periods[c.startPeriod - 1]?.start}</Text>
-                    <Text style={styles.timePeriod}>{c.startPeriod}-{c.endPeriod} 节</Text>
+                    <Text style={styles.timeEnd}>{periods[c.endPeriod - 1]?.end}</Text>
                   </View>
+                  <View style={[styles.rail, active && { backgroundColor: colors.brand }]} />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.courseName}>{c.name}</Text>
                     <Text style={styles.courseMeta}>{c.location ?? "地点待定"} · {c.teacher ?? "教师待定"}</Text>
                   </View>
-                  {active ? <Text style={styles.badge}>进行中</Text> : null}
                 </Pressable>
               );
-            })
-          )}
+            })}
+          </View>
+        )}
+      </FadeIn>
+
+      <FadeIn delay={160}>
+        <View style={styles.quickRow}>
+          <Pressable style={styles.quick} onPress={() => router.push("/import")}>
+            <Ionicons name="download-outline" size={18} color={colors.brand} />
+            <Text style={styles.quickText}>导入课表</Text>
+          </Pressable>
+          <Pressable style={styles.quick} onPress={() => router.push("/settings")}>
+            <Ionicons name="options-outline" size={18} color={colors.brand} />
+            <Text style={styles.quickText}>外观与提醒</Text>
+          </Pressable>
         </View>
       </FadeIn>
 
-      <FadeIn delay={180}>
-        <View style={styles.sectionHead}>
-          <Text style={styles.sectionTitle}>教务通知</Text>
-        </View>
-        <View style={styles.list}>
-          {[
-            { t: "关于 2026-2027 学年第一学期选课的通知", d: "11-18" },
-            { t: "期中教学检查学生座谈安排", d: "11-12" },
-            { t: "体育馆开放时间调整说明", d: "11-05" },
-          ].map((n, i, arr) => (
-            <View key={n.t} style={[styles.notice, i !== arr.length - 1 && styles.rowBorder]}>
-              <Text style={styles.noticeTitle} numberOfLines={1}>{n.t}</Text>
-              <Text style={styles.noticeDate}>{n.d}</Text>
-            </View>
-          ))}
-        </View>
-      </FadeIn>
-
-      <Text style={styles.footer}>
-        {source === "static"
-          ? "当前为导入的静态课表，接口恢复后重新登录即可切换回实时数据"
-          : source === "api"
-            ? "课表数据来自教务系统"
-            : "数据为演示内容，接入教务系统后自动更新"}
-      </Text>
+      <Text style={styles.footer}>完全离线 · 数据只保存在本机</Text>
     </ScrollView>
   );
 }
 
 const makeStyles = (colors: Colors) =>
   StyleSheet.create({
-    header: { paddingHorizontal: 16, paddingBottom: 14 },
-    title: { fontSize: 22, fontWeight: "700", color: colors.ink },
-    date: { fontSize: 12.5, color: colors.sub, marginTop: 6 },
-    updateBar: { flexDirection: "row", alignItems: "center", gap: 6, marginHorizontal: 16, marginBottom: 10, paddingHorizontal: 12, paddingVertical: 10, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.infoBorder, backgroundColor: colors.infoBg },
-    updateText: { flex: 1, fontSize: 12.5, color: colors.brand },
-    updateAction: { fontSize: 12, color: colors.brand, fontWeight: "600" },
-    stats: { flexDirection: "row", alignItems: "center", backgroundColor: colors.surface, marginHorizontal: 16, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, paddingVertical: 14 },
-    statValue: { fontSize: 20, fontWeight: "700", color: colors.ink },
-    statUnit: { fontSize: 11, fontWeight: "400", color: colors.sub },
-    statLabel: { fontSize: 11, color: colors.faint, marginTop: 4 },
-    statDivider: { width: 1, height: 26, backgroundColor: colors.line },
-    sectionHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 16, marginTop: 22, marginBottom: 8 },
-    sectionTitle: { fontSize: 14, fontWeight: "600", color: colors.ink },
+    header: { paddingHorizontal: 18 },
+    date: { fontSize: 12.5, color: colors.faint },
+    title: { fontSize: 30, fontWeight: "800", color: colors.ink, marginTop: 6, letterSpacing: -0.8 },
+    metaRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8 },
+    meta: { fontSize: 12, color: colors.sub },
+    metaDot: { fontSize: 12, color: colors.faint },
+    nextCard: { marginHorizontal: 18, marginTop: 18, padding: 16, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
+    nextHead: { flexDirection: "row", alignItems: "center", gap: 6 },
+    liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.success },
+    nextLabel: { fontSize: 11, color: colors.success, fontWeight: "600" },
+    nextTime: { marginLeft: "auto", fontSize: 11, color: colors.faint },
+    nextName: { fontSize: 18, fontWeight: "700", color: colors.ink, marginTop: 10 },
+    nextMeta: { fontSize: 12, color: colors.sub, marginTop: 5 },
+    sectionHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 18, marginTop: 24, marginBottom: 8 },
+    sectionTitle: { fontSize: 15, fontWeight: "700", color: colors.ink },
     sectionMore: { fontSize: 11.5, color: colors.faint },
-    staticTag: { fontSize: 10, color: colors.warnText, backgroundColor: colors.warnBg, borderWidth: 1, borderColor: colors.warnBorder, borderRadius: 3, paddingHorizontal: 5, paddingVertical: 1 },
-    list: { backgroundColor: colors.surface, marginHorizontal: 16, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, overflow: "hidden" },
-    row: { flexDirection: "row", alignItems: "center", padding: 14, gap: 12 },
+    list: { marginHorizontal: 18, backgroundColor: colors.surface, borderRadius: 16, borderWidth: 1, borderColor: colors.line, overflow: "hidden" },
+    row: { flexDirection: "row", alignItems: "center", paddingVertical: 13, paddingHorizontal: 14, gap: 10 },
     rowBorder: { borderBottomWidth: 1, borderBottomColor: colors.line },
-    timeCol: { width: 56 },
-    timeStart: { fontSize: 13.5, fontWeight: "600", color: colors.ink },
-    timePeriod: { fontSize: 10.5, color: colors.faint, marginTop: 3 },
-    courseName: { fontSize: 14, fontWeight: "600", color: colors.ink },
+    timeCol: { width: 46 },
+    timeStart: { fontSize: 13, fontWeight: "700", color: colors.ink },
+    timeEnd: { fontSize: 10, color: colors.faint, marginTop: 2 },
+    rail: { width: 3, alignSelf: "stretch", borderRadius: 2, backgroundColor: colors.line },
+    courseName: { fontSize: 14.5, fontWeight: "600", color: colors.ink },
     courseMeta: { fontSize: 11.5, color: colors.sub, marginTop: 4 },
-    badge: { fontSize: 10, color: colors.brand, borderWidth: 1, borderColor: colors.brand, borderRadius: 3, paddingHorizontal: 5, paddingVertical: 2 },
-    empty: { padding: 24, alignItems: "center" },
+    emptyCard: { marginHorizontal: 18, padding: 24, borderRadius: 16, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, alignItems: "center", gap: 8 },
     emptyText: { fontSize: 12.5, color: colors.faint },
-    notice: { flexDirection: "row", alignItems: "center", paddingHorizontal: 14, paddingVertical: 13, gap: 10 },
-    noticeTitle: { flex: 1, fontSize: 13, color: colors.ink },
-    noticeDate: { fontSize: 11, color: colors.faint },
-    footer: { textAlign: "center", fontSize: 11, color: colors.faint, marginTop: 22, paddingHorizontal: 20 },
+    importBtn: { marginTop: 6, paddingHorizontal: 18, height: 36, borderRadius: 8, backgroundColor: colors.brand, alignItems: "center", justifyContent: "center" },
+    importText: { color: "#FFFFFF", fontSize: 12.5, fontWeight: "600" },
+    quickRow: { flexDirection: "row", gap: 10, marginHorizontal: 18, marginTop: 20 },
+    quick: { flex: 1, height: 52, borderRadius: 12, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
+    quickText: { fontSize: 12.5, color: colors.ink },
+    footer: { textAlign: "center", fontSize: 11, color: colors.faint, marginTop: 24 },
   });

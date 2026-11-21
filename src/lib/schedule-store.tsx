@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { Course, DEMO_COURSES, cellsOfWeek, todayCourses } from "./schedule";
+import { Course, cellsOfWeek, todayCourses } from "./schedule";
 import { Period, TOTAL_WEEKS } from "./time";
 import { Season, getPeriods, seasonLabel, seasonOf } from "./season";
 import {
@@ -120,6 +120,7 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
         ui: activeTable.ui,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
+        source: source === "api" ? "api" : "import",
       };
       setTables((prev) => [...prev, t]);
       setActiveId(t.id);
@@ -130,7 +131,7 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
   const applyStatic = useCallback(async (courses: Course[], name: string) => importCourses(courses, undefined, name, "static"), [importCourses]);
   const applyApi = useCallback(async (courses: Course[], periods?: Period[]) => importCourses(courses, periods, activeTable.name, "api"), [importCourses, activeTable.name]);
   const clearStatic = useCallback(async () => {
-    setTables((prev) => prev.map((t) => (t.id === activeId ? { ...t, courses: DEMO_COURSES, name: "演示课表", updatedAt: new Date().toISOString() } : t)));
+    setTables((prev) => prev.map((t) => (t.id === activeId ? { ...t, courses: [], source: "demo", updatedAt: new Date().toISOString() } : t)));
   }, [activeId]);
 
   const value = useMemo<ScheduleValue>(() => {
@@ -139,7 +140,7 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
     const cells = cellsOfWeek(courses, week);
     const jsDay = new Date().getDay();
     const weekday = jsDay === 0 ? 7 : jsDay;
-    const source: ScheduleSource = activeTable.id.startsWith("demo") ? "demo" : "static";
+    const source: ScheduleSource = activeTable.source === "api" ? "api" : activeTable.source === "import" ? "static" : "demo";
     return {
       courses,
       week,

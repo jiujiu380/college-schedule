@@ -27,7 +27,7 @@ export default function AgreementScreen() {
 
   const onAgree = async () => {
     await saveAgreed();
-    router.replace("/login");
+    router.replace("/home");
   };
 
   const onDisagree = () => {
