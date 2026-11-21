@@ -133,17 +133,24 @@ export default function SettingsScreen() {
       <Text style={styles.section}>外观</Text>
       <View style={styles.card}>
         <Text style={styles.subLabel}>配色</Text>
-        <View style={styles.themeGrid}>
-          {THEME_PRESETS.map((p) => (
-            <Pressable key={p.id} style={[styles.themeItem, activeTable.themeId === p.id && { borderColor: colors.brand }]} onPress={() => updateTable({ themeId: p.id })}>
-              <View style={[styles.themeSwatch, { backgroundColor: p.brand }]}>
-                <View style={[styles.themeDot, { backgroundColor: p.tints[0].bar }]} />
-                <View style={[styles.themeDot, { backgroundColor: p.tints[1].bar }]} />
-              </View>
-              <Text style={styles.themeName}>{p.name}</Text>
-            </Pressable>
-          ))}
-        </View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.themeRow}>
+          {THEME_PRESETS.map((p) => {
+            const active = activeTable.themeId === p.id;
+            return (
+              <Pressable key={p.id} style={[styles.themeCard, active && { borderColor: p.brand }]} onPress={() => updateTable({ themeId: p.id })}>
+                <View style={styles.themePreview}>
+                  {p.tints.slice(0, 3).map((t, i) => (
+                    <View key={i} style={[styles.themeBar, { backgroundColor: t.bg, borderLeftColor: t.bar }]}>
+                      <View style={[styles.themeBarInner, { backgroundColor: t.fg }]} />
+                    </View>
+                  ))}
+                </View>
+                <Text style={[styles.themeLabel, active && { color: p.brand, fontWeight: "600" }]}>{p.name}</Text>
+                {active ? <View style={[styles.themeCheck, { backgroundColor: p.brand }]}><Ionicons name="checkmark" size={10} color="#FFFFFF" /></View> : null}
+              </Pressable>
+            );
+          })}
+        </ScrollView>
         {stepper("格子高度", ui.rowHeight, 72, 132, 8, (v) => updateTable({ ui: { ...ui, rowHeight: v } }))}
         {stepper("圆角", ui.radius, 0, 10, 1, (v) => updateTable({ ui: { ...ui, radius: v } }))}
         {stepper("透明度", ui.opacity, 0.5, 1, 0.05, (v) => updateTable({ ui: { ...ui, opacity: v } }), (v) => `${Math.round(v * 100)}%`)}
@@ -234,11 +241,13 @@ const makeStyles = (colors: Colors) =>
     addBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingVertical: 13 },
     addText: { fontSize: 13, color: colors.brand, fontWeight: "500" },
     subLabel: { fontSize: 12, color: colors.sub, paddingHorizontal: 14, paddingTop: 12 },
-    themeGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, padding: 14 },
-    themeItem: { width: "22%", alignItems: "center", paddingVertical: 8, borderRadius: 8, borderWidth: 2, borderColor: "transparent" },
-    themeSwatch: { width: 34, height: 34, borderRadius: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 3 },
-    themeDot: { width: 8, height: 8, borderRadius: 4 },
-    themeName: { fontSize: 10.5, color: colors.sub, marginTop: 5 },
+    themeRow: { gap: 10, paddingHorizontal: 14, paddingVertical: 12 },
+    themeCard: { width: 92, borderRadius: 12, borderWidth: 2, borderColor: colors.line, padding: 6, backgroundColor: colors.bg },
+    themePreview: { borderRadius: 8, overflow: "hidden", gap: 3 },
+    themeBar: { height: 16, borderLeftWidth: 3, justifyContent: "center", paddingHorizontal: 5 },
+    themeBarInner: { height: 3, width: "60%", borderRadius: 2, opacity: 0.85 },
+    themeLabel: { fontSize: 11.5, color: colors.ink, marginTop: 7, textAlign: "center" },
+    themeCheck: { position: "absolute", right: -5, top: -5, width: 16, height: 16, borderRadius: 8, alignItems: "center", justifyContent: "center" },
     stepBox: { flexDirection: "row", alignItems: "center", gap: 8 },
     stepBtn: { width: 28, height: 26, borderRadius: 4, borderWidth: 1, borderColor: colors.fieldBorder, alignItems: "center", justifyContent: "center" },
     stepText: { fontSize: 14, color: colors.ink },
