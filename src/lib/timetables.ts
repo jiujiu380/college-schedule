@@ -27,7 +27,7 @@ export type Timetable = {
 const KEY = "college.timetables.v1";
 const ACTIVE_KEY = "college.timetables.active.v1";
 
-export const DEFAULT_UI: TableUi = { rowHeight: 100, radius: 3, opacity: 1, dividers: true };
+export const DEFAULT_UI: TableUi = { rowHeight: 64, radius: 6, opacity: 1, dividers: true };
 
 export const DEMO_TABLES: Timetable[] = [
   {

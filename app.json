@@ -1,14 +1,14 @@
 {
   "expo": {
-    "name": "课表",
+    "name": "知酷课程表",
     "slug": "college-schedule",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "scheme": "collegeschedule",
+    "scheme": "zhiku",
     "userInterfaceStyle": "light",
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#FFFFFF"
     },
@@ -19,7 +19,7 @@
     "android": {
       "package": "com.jiujiu380.collegeschedule",
       "adaptiveIcon": {
-        "backgroundColor": "#2F5BFF",
+        "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"

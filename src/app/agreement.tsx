@@ -47,7 +47,7 @@ export default function AgreementScreen() {
       </View>
 
       <ScrollView onScroll={onScroll} scrollEventThrottle={16} showsVerticalScrollIndicator contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 24 }}>
-        <Text style={styles.intro}>在使用「课表系统」前，请完整阅读以下条款。阅读并点击“同意”即表示您已理解并接受全部内容。</Text>
+        <Text style={styles.intro}>在使用「知酷课程表」前，请完整阅读以下条款。阅读并点击“同意”即表示您已理解并接受全部内容。</Text>
         {AGREEMENT_SECTIONS.map((s) => (
           <View key={s.heading} style={{ marginTop: 20 }}>
             <Text style={styles.heading}>{s.heading}</Text>

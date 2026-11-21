@@ -3,13 +3,11 @@ export const WEEKDAYS = ["一", "二", "三", "四", "五", "六", "日"];
 export type Period = { no: number; start: string; end: string };
 
 /** 课表行：按两节一组展示，中午单列一行（与教务系统一致） */
-export const ROW_GROUPS: { key: string; label: string; periods: number[] }[] = [
-  { key: "1-2", label: "1-2", periods: [1, 2] },
-  { key: "3-4", label: "3-4", periods: [3, 4] },
-  { key: "5-6", label: "5-6", periods: [5, 6] },
-  { key: "7-8", label: "7-8", periods: [7, 8] },
-  { key: "9-10", label: "9-10", periods: [9, 10] },
-];
+export const ROW_GROUPS: { key: string; label: string; periods: number[] }[] = Array.from({ length: 10 }, (_, i) => ({
+  key: String(i + 1),
+  label: String(i + 1),
+  periods: [i + 1],
+}));
 
 export const TOTAL_WEEKS = 20;
 

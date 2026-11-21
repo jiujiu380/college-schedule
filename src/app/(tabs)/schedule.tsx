@@ -9,11 +9,50 @@ import { currentNow } from "../../lib/clock";
 import { useSchedule } from "../../lib/schedule-store";
 import { Course } from "../../lib/schedule";
 import { useTheme } from "../../lib/theme-context";
-import { ROW_GROUPS, WEEKDAYS, currentPeriodNo, formatToday, groupOfPeriod, todayWeekday } from "../../lib/time";
+import { currentPeriodNo, formatToday, todayWeekday, WEEKDAYS } from "../../lib/time";
 import { tintFor } from "../../lib/theme-presets";
 import { Colors } from "../../theme";
 
-const LABEL_W = 46;
+const LABEL_W = 54;
+const DAYS = 10;
+
+type Block = { course: Course; lane: number; lanes: number };
+
+function layoutDay(list: Course[]): Block[] {
+  const sorted = [...list].sort((a, b) => a.startPeriod - b.startPeriod);
+  const clusters: Course[][] = [];
+  let cur: Course[] = [];
+  let end = 0;
+  for (const c of sorted) {
+    if (!cur.length || c.startPeriod <= end) {
+      cur.push(c);
+      end = Math.max(end, c.endPeriod);
+    } else {
+      clusters.push(cur);
+      cur = [c];
+      end = c.endPeriod;
+    }
+  }
+  if (cur.length) clusters.push(cur);
+
+  const blocks: Block[] = [];
+  for (const cluster of clusters) {
+    const lanes: Course[][] = [];
+    for (const c of cluster) {
+      let placed = false;
+      for (const lane of lanes) {
+        if (lane[lane.length - 1].endPeriod < c.startPeriod) {
+          lane.push(c);
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) lanes.push([c]);
+    }
+    lanes.forEach((items, li) => items.forEach((course) => blocks.push({ course, lane: li, lanes: lanes.length })));
+  }
+  return blocks;
+}
 
 export default function ScheduleScreen() {
   const insets = useSafeAreaInsets();
@@ -21,16 +60,16 @@ export default function ScheduleScreen() {
   const { colors, scheme } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { week, setWeek, courses, periods, activeTable, tables, activeId, switchTable, addTable, preset, ui, addCourse, updateCourse } = useSchedule();
-  const [editor, setEditor] = useState<{ visible: boolean; course: Course | null; weekday: number; start: number }>({ visible: false, course: null, weekday: 1, start: 1 });
   const [w, setW] = useState(360);
   const [nowWeekday] = useState(todayWeekday);
   const now = useMemo(() => currentNow(), []);
-  const activeGroup = useMemo(() => groupOfPeriod(currentPeriodNo(periods, now)), [periods, now]);
+  const activeGroup = useMemo(() => currentPeriodNo(periods, now), [periods, now]);
   const [switcher, setSwitcher] = useState(false);
+  const [editor, setEditor] = useState<{ visible: boolean; course: Course | null; weekday: number; start: number }>({ visible: false, course: null, weekday: 1, start: 1 });
   const fade = useRef(new Animated.Value(1)).current;
 
   const dark = scheme === "dark";
-  const colW = Math.max(40, (w - LABEL_W) / 7);
+  const colW = Math.max(38, (w - LABEL_W) / 7);
   const rowH = ui.rowHeight;
 
   useEffect(() => {
@@ -42,19 +81,39 @@ export default function ScheduleScreen() {
 
   const monday = useMemo(() => {
     const [y, m, d] = activeTable.startDate.split("-").map(Number);
-    const start = new Date(y, (m ?? 1) - 1, d ?? 1);
-    start.setDate(start.getDate() + (week - 1) * 7);
-    return start;
+    const date = new Date(y, (m ?? 1) - 1, d ?? 1);
+    date.setDate(date.getDate() + (week - 1) * 7);
+    return date;
   }, [activeTable.startDate, week]);
 
-  const cellCourses = (day: number, rowPeriods: number[]): Course[] => {
-    if (!rowPeriods.length) return [];
-    return courses
-      .filter((c) => c.weekday === day && c.startPeriod <= rowPeriods[rowPeriods.length - 1] && c.endPeriod >= rowPeriods[0])
-      .sort((a, b) => a.startPeriod - b.startPeriod);
-  };
+  const active = useMemo(() => courses.filter((c) => c.weeks.includes(week)), [courses, week]);
+  const offWeek = useMemo(() => courses.filter((c) => !c.weeks.includes(week)), [courses, week]);
+
+  const blocksByDay = useMemo(() => WEEKDAYS.map((_, i) => layoutDay(active.filter((c) => c.weekday === i + 1))), [active]);
+
+  const offBlocksByDay = useMemo(
+    () =>
+      WEEKDAYS.map((_, i) =>
+        offWeek.filter(
+          (c) => c.weekday === i + 1 && !active.some((a) => a.weekday === i + 1 && a.startPeriod <= c.endPeriod && a.endPeriod >= c.startPeriod),
+        ),
+      ),
+    [offWeek, active],
+  );
+
+  const conflictCells = useMemo(() => {
+    const set = new Set<string>();
+    WEEKDAYS.forEach((_, i) => {
+      const day = active.filter((c) => c.weekday === i + 1);
+      for (let p = 1; p <= DAYS; p++) {
+        if (day.filter((c) => c.startPeriod <= p && c.endPeriod >= p).length > 1) set.add(`${i + 1}-${p}`);
+      }
+    });
+    return set;
+  }, [active]);
 
   const empty = courses.length === 0;
+  const border = ui.dividers ? colors.line : "transparent";
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }} onLayout={(e) => { const v = e.nativeEvent.layout.width; if (Math.abs(v - w) > 1) setW(v); }}>
@@ -74,16 +133,12 @@ export default function ScheduleScreen() {
         <Text style={styles.subtitle}>{formatToday()} · 共 {activeTable.totalWeeks} 周</Text>
 
         <View style={styles.weekBar}>
-          <Pressable style={styles.navBtn} onPress={() => setWeek(week - 1)} hitSlop={6}>
-            <Ionicons name="chevron-back" size={16} color={colors.ink} />
-          </Pressable>
+          <Pressable style={styles.navBtn} onPress={() => setWeek(week - 1)} hitSlop={6}><Ionicons name="chevron-back" size={16} color={colors.ink} /></Pressable>
           <View style={styles.weekCenter}>
             <Text style={styles.weekText}>第 {week} 周</Text>
             <Text style={styles.weekRange}>{monday.getMonth() + 1}/{monday.getDate()} - {new Date(monday.getTime() + 6 * 86400000).getMonth() + 1}/{new Date(monday.getTime() + 6 * 86400000).getDate()}</Text>
           </View>
-          <Pressable style={styles.navBtn} onPress={() => setWeek(week + 1)} hitSlop={6}>
-            <Ionicons name="chevron-forward" size={16} color={colors.ink} />
-          </Pressable>
+          <Pressable style={styles.navBtn} onPress={() => setWeek(week + 1)} hitSlop={6}><Ionicons name="chevron-forward" size={16} color={colors.ink} /></Pressable>
         </View>
       </View>
 
@@ -92,16 +147,12 @@ export default function ScheduleScreen() {
           <View style={styles.emptyIcon}><Ionicons name="calendar-outline" size={28} color={colors.brand} /></View>
           <Text style={styles.emptyTitle}>还没有课程</Text>
           <Text style={styles.emptyText}>从教务网页导入，或粘贴源码 / CSV 建立你的第一张课表</Text>
-          <Pressable style={styles.emptyPrimary} onPress={() => router.push("/import")}>
-            <Text style={styles.emptyPrimaryText}>导入课表</Text>
-          </Pressable>
-          <Pressable style={styles.emptyGhost} onPress={() => { addTable("课表 1"); router.push("/periods"); }}>
-            <Text style={styles.emptyGhostText}>新建空白课表</Text>
-          </Pressable>
+          <Pressable style={styles.emptyPrimary} onPress={() => router.push("/import")}><Text style={styles.emptyPrimaryText}>导入课表</Text></Pressable>
+          <Pressable style={styles.emptyGhost} onPress={() => { addTable("课表 1"); router.push("/periods"); }}><Text style={styles.emptyGhostText}>新建空白课表</Text></Pressable>
         </View>
       ) : (
         <ScrollView contentContainerStyle={{ paddingBottom: 12 }} showsVerticalScrollIndicator={false}>
-          <Animated.View style={[styles.board, { opacity: fade }]}>
+          <Animated.View style={{ opacity: fade }}>
             <View style={{ flexDirection: "row" }}>
               <View style={{ width: LABEL_W }} />
               {WEEKDAYS.map((d, i) => {
@@ -117,51 +168,96 @@ export default function ScheduleScreen() {
               })}
             </View>
 
-            {ROW_GROUPS.map((g) => {
-              const isActiveRow = g.key === activeGroup;
-              return (
-                <View key={g.key} style={{ flexDirection: "row" }}>
-                  <View style={[styles.labelCell, { width: LABEL_W, height: rowH }, isActiveRow && { backgroundColor: colors.brand }]}>
-                    <Text style={[styles.labelText, isActiveRow && { color: "#FFFFFF" }]}>{g.label}</Text>
+            <View style={{ position: "relative", height: rowH * DAYS }}>
+              {Array.from({ length: DAYS }).map((_, pIdx) => {
+                const p = pIdx + 1;
+                const isActiveRow = activeGroup === p;
+                return (
+                  <View key={p} style={{ flexDirection: "row", height: rowH }}>
+                    <View style={[styles.labelCell, { width: LABEL_W }, isActiveRow && { backgroundColor: colors.brand }]}>
+                      <Text style={[styles.labelText, isActiveRow && { color: "#FFFFFF" }]}>第{p}节</Text>
+                    </View>
+                    {WEEKDAYS.map((d, i) => {
+                      const isToday = nowWeekday === i + 1;
+                      const conflict = conflictCells.has(`${i + 1}-${p}`);
+                      return (
+                        <Pressable
+                          key={d}
+                          onLongPress={() => setEditor({ visible: true, course: null, weekday: i + 1, start: p })}
+                          delayLongPress={320}
+                          style={[styles.cell, { width: colW, borderColor: border }, isToday && styles.cellToday, conflict && { backgroundColor: colors.danger + "14" }]}
+                        >
+                          {conflict ? <View style={styles.conflictDot} /> : null}
+                        </Pressable>
+                      );
+                    })}
                   </View>
-                  {WEEKDAYS.map((d, i) => {
-                    const isToday = nowWeekday === i + 1;
-                    const isCross = isToday && isActiveRow;
-                    const list = cellCourses(i + 1, g.periods);
+                );
+              })}
+
+              <View style={{ position: "absolute", left: LABEL_W, top: 0, width: colW * 7, height: rowH * DAYS }} pointerEvents="box-none">
+                {blocksByDay.map((blocks, dayIdx) =>
+                  blocks.map((b) => {
+                    const tint = tintFor(preset, b.course.id);
+                    const laneW = colW / b.lanes;
                     return (
                       <Pressable
-                        key={d}
-                        onLongPress={() => setEditor({ visible: true, course: null, weekday: i + 1, start: g.periods[0] })}
+                        key={b.course.id + "-" + b.lane}
+                        onPress={() => router.push(`/course/${b.course.id}`)}
+                        onLongPress={() => setEditor({ visible: true, course: b.course, weekday: b.course.weekday, start: b.course.startPeriod })}
                         delayLongPress={320}
-                        style={[styles.cell, { width: colW, height: rowH }, isToday && styles.cellToday, isCross && { borderWidth: 2, borderColor: colors.brand }, list.length > 1 && { borderWidth: 1.5, borderColor: colors.danger }]}
+                        style={[
+                          styles.block,
+                          {
+                            left: dayIdx * colW + b.lane * laneW + 1.5,
+                            top: (b.course.startPeriod - 1) * rowH + 2,
+                            width: Math.max(18, laneW - 3),
+                            height: (b.course.endPeriod - b.course.startPeriod + 1) * rowH - 4,
+                            backgroundColor: dark ? "#232A38" : tint.bg,
+                            borderLeftColor: tint.bar,
+                            borderRadius: ui.radius,
+                            opacity: ui.opacity,
+                          },
+                        ]}
                       >
-                        {list.length > 1 ? <Text style={styles.conflictTag}>冲突</Text> : null}
-                        {list.map((c) => {
-                          const tint = tintFor(preset, c.id);
-                          const inWeek = c.weeks.includes(week);
-                          return (
-                            <Pressable
-                              key={c.id}
-                              style={[styles.course, { backgroundColor: dark ? "#232A38" : tint.bg, borderLeftColor: tint.bar, borderRadius: ui.radius, opacity: inWeek ? ui.opacity : 0.35 }]}
-                              onPress={() => router.push(`/course/${c.id}`)}
-                              onLongPress={() => setEditor({ visible: true, course: c, weekday: c.weekday, start: c.startPeriod })}
-                              delayLongPress={320}
-                            >
-                              <Text style={[styles.courseName, { color: dark ? colors.ink : tint.fg }]} numberOfLines={2}>{c.name}</Text>
-                              {c.location ? <Text style={[styles.courseMeta, { color: dark ? colors.sub : tint.fg }]} numberOfLines={1}>{c.location}</Text> : null}
-                              {c.teacher ? <Text style={[styles.courseMeta, { color: dark ? colors.faint : tint.fg }]} numberOfLines={1}>{c.teacher}</Text> : null}
-                              {!inWeek ? <Text style={[styles.offWeek, { color: dark ? colors.faint : tint.fg }]}>非本周</Text> : null}
-                            </Pressable>
-                          );
-                        })}
+                        <Text style={[styles.courseName, { color: dark ? colors.ink : tint.fg }]} numberOfLines={3}>{b.course.name}</Text>
+                        {b.course.location ? <Text style={[styles.courseMeta, { color: dark ? colors.sub : tint.fg }]} numberOfLines={1}>{b.course.location}</Text> : null}
+                        {b.course.teacher ? <Text style={[styles.courseMeta, { color: dark ? colors.faint : tint.fg }]} numberOfLines={1}>{b.course.teacher}</Text> : null}
                       </Pressable>
                     );
-                  })}
-                </View>
-              );
-            })}
+                  }),
+                )}
+                {offBlocksByDay.map((blocks, dayIdx) =>
+                  blocks.map((c) => {
+                    const tint = tintFor(preset, c.id);
+                    return (
+                      <Pressable
+                        key={c.id}
+                        onPress={() => router.push(`/course/${c.id}`)}
+                        style={[
+                          styles.block,
+                          {
+                            left: dayIdx * colW + 1.5,
+                            top: (c.startPeriod - 1) * rowH + 2,
+                            width: colW - 3,
+                            height: (c.endPeriod - c.startPeriod + 1) * rowH - 4,
+                            backgroundColor: dark ? "#1B2029" : tint.bg,
+                            borderLeftColor: colors.faint,
+                            borderRadius: ui.radius,
+                            opacity: 0.4,
+                          },
+                        ]}
+                      >
+                        <Text style={[styles.courseName, { color: dark ? colors.faint : tint.fg }]} numberOfLines={2}>{c.name}</Text>
+                        <Text style={[styles.offWeek, { color: dark ? colors.faint : tint.fg }]}>非本周</Text>
+                      </Pressable>
+                    );
+                  }),
+                )}
+              </View>
+            </View>
           </Animated.View>
-          <Text style={styles.footerHint}>点击课程查看详情 · 非本周课程已淡化</Text>
+          <Text style={styles.footerHint}>长按空白格添加 · 长按课程编辑 · 非本周课程已淡化</Text>
         </ScrollView>
       )}
 
@@ -192,12 +288,8 @@ export default function ScheduleScreen() {
               </Pressable>
             ))}
             <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
-              <Pressable style={styles.secondaryBtn} onPress={() => { setSwitcher(false); addTable(`课表 ${tables.length + 1}`); }}>
-                <Text style={styles.secondaryText}>新建空白课表</Text>
-              </Pressable>
-              <Pressable style={styles.secondaryBtn} onPress={() => { setSwitcher(false); router.push("/settings"); }}>
-                <Text style={styles.secondaryText}>管理</Text>
-              </Pressable>
+              <Pressable style={styles.secondaryBtn} onPress={() => { setSwitcher(false); addTable(`课表 ${tables.length + 1}`); }}><Text style={styles.secondaryText}>新建空白课表</Text></Pressable>
+              <Pressable style={styles.secondaryBtn} onPress={() => { setSwitcher(false); router.push("/settings"); }}><Text style={styles.secondaryText}>管理</Text></Pressable>
             </View>
           </View>
         </Pressable>
@@ -220,20 +312,19 @@ const makeStyles = (colors: Colors) =>
     weekCenter: { flex: 1, alignItems: "center" },
     weekText: { fontSize: 15, fontWeight: "700", color: colors.ink },
     weekRange: { fontSize: 10.5, color: colors.faint, marginTop: 2 },
-    board: { marginTop: 8, backgroundColor: colors.surface, borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.line },
     dayHead: { height: 42, alignItems: "center", justifyContent: "center", gap: 2 },
     dayHeadToday: { backgroundColor: colors.brandSoft },
     dayName: { fontSize: 11, color: colors.sub, fontWeight: "500" },
     dayDate: { fontSize: 13, fontWeight: "700", color: colors.ink },
     labelCell: { alignItems: "center", justifyContent: "center", borderTopWidth: 1, borderRightWidth: 1, borderColor: colors.line, backgroundColor: colors.lineSoft },
-    labelText: { fontSize: 12, color: colors.sub, fontWeight: "500" },
-    cell: { borderTopWidth: 1, borderRightWidth: 1, borderColor: colors.line, padding: 2.5, backgroundColor: colors.surface },
+    labelText: { fontSize: 10.5, color: colors.sub, fontWeight: "500" },
+    cell: { borderTopWidth: 1, borderRightWidth: 1, backgroundColor: colors.surface, padding: 2 },
     cellToday: { backgroundColor: colors.brandSoft + "55" },
-    course: { flex: 1, borderLeftWidth: 2.5, paddingHorizontal: 3, paddingVertical: 4, marginBottom: 2, overflow: "hidden" },
-    courseName: { fontSize: 11, fontWeight: "700", lineHeight: 14 },
+    conflictDot: { position: "absolute", top: 3, right: 3, width: 5, height: 5, borderRadius: 3, backgroundColor: colors.danger },
+    block: { position: "absolute", borderLeftWidth: 2.5, paddingHorizontal: 3, paddingVertical: 3, overflow: "hidden" },
+    courseName: { fontSize: 10.5, fontWeight: "700", lineHeight: 13.5 },
     courseMeta: { fontSize: 8.5, marginTop: 1, lineHeight: 11, opacity: 0.9 },
-    offWeek: { fontSize: 9, marginTop: 2 },
-    conflictTag: { position: "absolute", top: 1, right: 1, fontSize: 8, color: "#FFFFFF", backgroundColor: colors.danger, paddingHorizontal: 3, paddingVertical: 1, borderRadius: 3, zIndex: 2 },
+    offWeek: { fontSize: 8.5, marginTop: 1 },
     footerHint: { fontSize: 11, color: colors.faint, textAlign: "center", marginTop: 12 },
     empty: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 40, paddingBottom: 60 },
     emptyIcon: { width: 64, height: 64, borderRadius: 20, backgroundColor: colors.brandSoft, alignItems: "center", justifyContent: "center" },

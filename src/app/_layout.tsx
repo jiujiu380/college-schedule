@@ -107,6 +107,7 @@ function ThemedRoot() {
                 <Stack.Screen name="school-login" options={{ ...headerOptions, title: "登录教务系统" }} />
                 <Stack.Screen name="import" options={{ ...headerOptions, title: "导入课表" }} />
                 <Stack.Screen name="backup" options={{ ...headerOptions, title: "备份与恢复" }} />
+                <Stack.Screen name="contact" options={{ ...headerOptions, title: "联系作者" }} />
                 <Stack.Screen name="update" options={{ ...headerOptions, title: "检查更新" }} />
                 <Stack.Screen name="sponsor" options={{ ...headerOptions, title: "赞助支持" }} />
                 <Stack.Screen name="login" options={{ animation: "none" }} />

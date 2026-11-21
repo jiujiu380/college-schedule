@@ -217,6 +217,12 @@ export default function SettingsScreen() {
           <Text style={styles.rowLabel}>用户协议与隐私政策</Text>
           <Ionicons name="chevron-forward" size={14} color={colors.faint} />
         </Pressable>
+        <Pressable style={[styles.row, styles.divider]} onPress={() => router.push("/contact")}>
+          <Ionicons name="mail-outline" size={17} color={colors.sub} />
+          <Text style={styles.rowLabel}>联系作者</Text>
+          <Text style={styles.rowValue}>class.zcoow.cn</Text>
+          <Ionicons name="chevron-forward" size={14} color={colors.faint} />
+        </Pressable>
         <Pressable style={styles.row} onPress={() => router.push("/sponsor")}>
           <Ionicons name="heart-outline" size={17} color={colors.sub} />
           <Text style={styles.rowLabel}>赞助支持</Text>
@@ -224,7 +230,7 @@ export default function SettingsScreen() {
         </Pressable>
       </View>
 
-      <Text style={styles.footer}>课表系统 · 完全离线 · 数据仅保存在本机</Text>
+      <Text style={styles.footer}>知酷课程表 · 完全离线 · 数据仅保存在本机</Text>
     </ScrollView>
   );
 }
