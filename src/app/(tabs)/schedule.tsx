@@ -66,6 +66,7 @@ export default function ScheduleScreen() {
   const activeGroup = useMemo(() => currentPeriodNo(periods, now), [periods, now]);
   const [switcher, setSwitcher] = useState(false);
   const [editor, setEditor] = useState<{ visible: boolean; course: Course | null; weekday: number; start: number }>({ visible: false, course: null, weekday: 1, start: 1 });
+  const [bubble, setBubble] = useState<{ day: number; period: number } | null>(null);
   const fade = useRef(new Animated.Value(1)).current;
 
   const dark = scheme === "dark";
@@ -176,6 +177,9 @@ export default function ScheduleScreen() {
                   <View key={p} style={{ flexDirection: "row", height: rowH }}>
                     <View style={[styles.labelCell, { width: LABEL_W }, isActiveRow && { backgroundColor: colors.brand }]}>
                       <Text style={[styles.labelText, isActiveRow && { color: "#FFFFFF" }]}>第{p}节</Text>
+                      <Text style={[styles.labelTime, isActiveRow && { color: "rgba(255,255,255,0.85)" }]}>
+                        {periods[p - 1]?.start ?? ""}-{periods[p - 1]?.end ?? ""}
+                      </Text>
                     </View>
                     {WEEKDAYS.map((d, i) => {
                       const isToday = nowWeekday === i + 1;
@@ -227,6 +231,22 @@ export default function ScheduleScreen() {
                     );
                   }),
                 )}
+                {offWeek.map((c) => {
+                  const overlapsActive = active.some(
+                    (a) => a.weekday === c.weekday && a.startPeriod <= c.endPeriod && a.endPeriod >= c.startPeriod,
+                  );
+                  if (!overlapsActive) return null;
+                  const span = c.endPeriod - c.startPeriod + 1;
+                  return (
+                    <Pressable
+                      key={"bubble-" + c.id}
+                      onPress={() => setBubble({ day: c.weekday, period: c.startPeriod })}
+                      style={[styles.bubble, { left: (c.weekday - 1) * colW + colW - 22, top: (c.startPeriod - 1) * rowH + 4 }]}
+                    >
+                      <Text style={styles.bubbleText}>{span}</Text>
+                    </Pressable>
+                  );
+                })}
                 {offBlocksByDay.map((blocks, dayIdx) =>
                   blocks.map((c) => {
                     const tint = tintFor(preset, c.id);
@@ -273,6 +293,41 @@ export default function ScheduleScreen() {
           setEditor((e) => ({ ...e, visible: false }));
         }}
       />
+
+      <Modal visible={bubble !== null} transparent animationType="fade" onRequestClose={() => setBubble(null)}>
+        <Pressable style={styles.mask} onPress={() => setBubble(null)}>
+          <View style={[styles.sheet, { backgroundColor: colors.surface }]}>
+            <Text style={styles.sheetTitle}>
+              {bubble ? `周${WEEKDAYS[bubble.day - 1]} 第${bubble.period}节` : ""}
+            </Text>
+            {bubble
+              ? courses
+                  .filter((c) => c.weekday === bubble.day && c.startPeriod <= bubble.period && c.endPeriod >= bubble.period)
+                  .sort((a, b) => (a.weeks.includes(week) === b.weeks.includes(week) ? 0 : a.weeks.includes(week) ? -1 : 1))
+                  .map((c) => {
+                    const inWeek = c.weeks.includes(week);
+                    return (
+                      <Pressable
+                        key={c.id}
+                        style={[styles.listRow, !inWeek && { opacity: 0.6 }]}
+                        onPress={() => { setBubble(null); router.push(`/course/${c.id}`); }}
+                      >
+                        <View style={[styles.listDot, { backgroundColor: inWeek ? colors.brand : colors.faint }]} />
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.listName}>{c.name}</Text>
+                          <Text style={styles.listMeta}>{c.startPeriod}-{c.endPeriod} 节 · {inWeek ? "本周" : "非本周"}</Text>
+                        </View>
+                        <Ionicons name="chevron-forward" size={14} color={colors.faint} />
+                      </Pressable>
+                    );
+                  })
+              : null}
+            <Pressable style={styles.secondaryBtn} onPress={() => setBubble(null)}>
+              <Text style={styles.secondaryText}>关闭</Text>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Modal>
 
       <Modal visible={switcher} transparent animationType="fade" onRequestClose={() => setSwitcher(false)}>
         <Pressable style={styles.mask} onPress={() => setSwitcher(false)}>
@@ -321,10 +376,13 @@ const makeStyles = (colors: Colors) =>
     cell: { borderTopWidth: 1, borderRightWidth: 1, backgroundColor: colors.surface, padding: 2 },
     cellToday: { backgroundColor: colors.brandSoft + "55" },
     conflictDot: { position: "absolute", top: 3, right: 3, width: 5, height: 5, borderRadius: 3, backgroundColor: colors.danger },
-    block: { position: "absolute", borderLeftWidth: 2.5, paddingHorizontal: 3, paddingVertical: 3, overflow: "hidden" },
+    block: { position: "absolute", borderLeftWidth: 2.5, paddingHorizontal: 3, paddingVertical: 3, overflow: "hidden", justifyContent: "center" },
     courseName: { fontSize: 10.5, fontWeight: "700", lineHeight: 13.5 },
     courseMeta: { fontSize: 8.5, marginTop: 1, lineHeight: 11, opacity: 0.9 },
     offWeek: { fontSize: 8.5, marginTop: 1 },
+    labelTime: { fontSize: 8, color: colors.faint, marginTop: 2 },
+    bubble: { position: "absolute", width: 18, height: 18, borderRadius: 9, backgroundColor: colors.danger, alignItems: "center", justifyContent: "center", zIndex: 5 },
+    bubbleText: { color: "#FFFFFF", fontSize: 10, fontWeight: "700" },
     footerHint: { fontSize: 11, color: colors.faint, textAlign: "center", marginTop: 12 },
     empty: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 40, paddingBottom: 60 },
     emptyIcon: { width: 64, height: 64, borderRadius: 20, backgroundColor: colors.brandSoft, alignItems: "center", justifyContent: "center" },
@@ -342,4 +400,8 @@ const makeStyles = (colors: Colors) =>
     tableMeta: { fontSize: 11, color: colors.faint, marginTop: 3 },
     secondaryBtn: { flex: 1, height: 42, borderRadius: 10, borderWidth: 1, borderColor: colors.fieldBorder, alignItems: "center", justifyContent: "center" },
     secondaryText: { fontSize: 12.5, color: colors.ink },
+    listRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.line },
+    listDot: { width: 7, height: 7, borderRadius: 4 },
+    listName: { fontSize: 14, color: colors.ink, fontWeight: "500" },
+    listMeta: { fontSize: 11, color: colors.faint, marginTop: 3 },
   });
