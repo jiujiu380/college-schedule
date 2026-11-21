@@ -122,6 +122,12 @@ export default function SettingsScreen() {
           <Ionicons name="add" size={16} color={colors.brand} />
           <Text style={styles.addText}>新建课表</Text>
         </Pressable>
+        <Pressable style={[styles.row, { borderTopWidth: 1, borderTopColor: colors.line }]} onPress={() => router.push("/periods")}>
+          <Ionicons name="time-outline" size={17} color={colors.sub} />
+          <Text style={styles.rowLabel}>节次时间</Text>
+          <Text style={styles.rowValue}>第 1 节 {periods[0]?.start ?? "--"} 起</Text>
+          <Ionicons name="chevron-forward" size={14} color={colors.faint} />
+        </Pressable>
       </View>
 
       <Text style={styles.section}>外观</Text>
