@@ -15,6 +15,7 @@ import {
 } from "./timetables";
 import { StaticMeta } from "./static-timetable";
 import { ThemePreset, presetById } from "./theme-presets";
+import { writeWidgetData } from "./widget-data";
 
 export type ScheduleSource = "demo" | "static" | "api";
 
@@ -78,6 +79,13 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (ready) void saveTables({ tables, activeId });
   }, [tables, activeId, ready]);
+
+  useEffect(() => {
+    if (!ready) return;
+    const t = tables.find((x) => x.id === activeId) ?? tables[0];
+    if (!t) return;
+    void writeWidgetData({ tableName: t.name, week, courses: t.courses, periods: t.periods, startDate: t.startDate });
+  }, [tables, activeId, week, ready]);
 
   const activeTable = useMemo(() => tables.find((t) => t.id === activeId) ?? tables[0] ?? DEMO_TABLES[0], [tables, activeId]);
 
