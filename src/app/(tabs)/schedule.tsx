@@ -3,6 +3,7 @@ import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { CourseEditor } from "../../components/CourseEditor";
 import { ScreenStatusBar } from "../../components/ScreenStatusBar";
 import { currentNow } from "../../lib/clock";
 import { useSchedule } from "../../lib/schedule-store";
@@ -19,7 +20,8 @@ export default function ScheduleScreen() {
   const router = useRouter();
   const { colors, scheme } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { week, setWeek, courses, periods, activeTable, tables, activeId, switchTable, addTable, preset, ui } = useSchedule();
+  const { week, setWeek, courses, periods, activeTable, tables, activeId, switchTable, addTable, preset, ui, addCourse, updateCourse } = useSchedule();
+  const [editor, setEditor] = useState<{ visible: boolean; course: Course | null; weekday: number; start: number }>({ visible: false, course: null, weekday: 1, start: 1 });
   const [w, setW] = useState(360);
   const [nowWeekday] = useState(todayWeekday);
   const now = useMemo(() => currentNow(), []);
@@ -127,7 +129,13 @@ export default function ScheduleScreen() {
                     const isCross = isToday && isActiveRow;
                     const list = cellCourses(i + 1, g.periods);
                     return (
-                      <View key={d} style={[styles.cell, { width: colW, height: rowH }, isToday && styles.cellToday, isCross && { borderWidth: 2, borderColor: colors.brand }]}>
+                      <Pressable
+                        key={d}
+                        onLongPress={() => setEditor({ visible: true, course: null, weekday: i + 1, start: g.periods[0] })}
+                        delayLongPress={320}
+                        style={[styles.cell, { width: colW, height: rowH }, isToday && styles.cellToday, isCross && { borderWidth: 2, borderColor: colors.brand }, list.length > 1 && { borderWidth: 1.5, borderColor: colors.danger }]}
+                      >
+                        {list.length > 1 ? <Text style={styles.conflictTag}>冲突</Text> : null}
                         {list.map((c) => {
                           const tint = tintFor(preset, c.id);
                           const inWeek = c.weeks.includes(week);
@@ -136,6 +144,8 @@ export default function ScheduleScreen() {
                               key={c.id}
                               style={[styles.course, { backgroundColor: dark ? "#232A38" : tint.bg, borderLeftColor: tint.bar, borderRadius: ui.radius, opacity: inWeek ? ui.opacity : 0.35 }]}
                               onPress={() => router.push(`/course/${c.id}`)}
+                              onLongPress={() => setEditor({ visible: true, course: c, weekday: c.weekday, start: c.startPeriod })}
+                              delayLongPress={320}
                             >
                               <Text style={[styles.courseName, { color: dark ? colors.ink : tint.fg }]} numberOfLines={2}>{c.name}</Text>
                               {c.location ? <Text style={[styles.courseMeta, { color: dark ? colors.sub : tint.fg }]} numberOfLines={1}>{c.location}</Text> : null}
@@ -144,7 +154,7 @@ export default function ScheduleScreen() {
                             </Pressable>
                           );
                         })}
-                      </View>
+                      </Pressable>
                     );
                   })}
                 </View>
@@ -154,6 +164,19 @@ export default function ScheduleScreen() {
           <Text style={styles.footerHint}>点击课程查看详情 · 非本周课程已淡化</Text>
         </ScrollView>
       )}
+
+      <CourseEditor
+        visible={editor.visible}
+        initial={editor.course}
+        defaultWeekday={editor.weekday}
+        defaultStart={editor.start}
+        onClose={() => setEditor((e) => ({ ...e, visible: false }))}
+        onSubmit={(course) => {
+          if (editor.course) updateCourse(course);
+          else addCourse(course);
+          setEditor((e) => ({ ...e, visible: false }));
+        }}
+      />
 
       <Modal visible={switcher} transparent animationType="fade" onRequestClose={() => setSwitcher(false)}>
         <Pressable style={styles.mask} onPress={() => setSwitcher(false)}>
@@ -210,6 +233,7 @@ const makeStyles = (colors: Colors) =>
     courseName: { fontSize: 11, fontWeight: "700", lineHeight: 14 },
     courseMeta: { fontSize: 8.5, marginTop: 1, lineHeight: 11, opacity: 0.9 },
     offWeek: { fontSize: 9, marginTop: 2 },
+    conflictTag: { position: "absolute", top: 1, right: 1, fontSize: 8, color: "#FFFFFF", backgroundColor: colors.danger, paddingHorizontal: 3, paddingVertical: 1, borderRadius: 3, zIndex: 2 },
     footerHint: { fontSize: 11, color: colors.faint, textAlign: "center", marginTop: 12 },
     empty: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 40, paddingBottom: 60 },
     emptyIcon: { width: 64, height: 64, borderRadius: 20, backgroundColor: colors.brandSoft, alignItems: "center", justifyContent: "center" },

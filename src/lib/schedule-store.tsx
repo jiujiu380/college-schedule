@@ -43,6 +43,9 @@ type ScheduleValue = {
   updateTable: (patch: Partial<Timetable>) => void;
   deleteTable: (id: string) => void;
   importCourses: (courses: Course[], periods: Period[] | undefined, name: string, source: ScheduleSource) => Promise<void>;
+  addCourse: (course: Course) => void;
+  updateCourse: (course: Course) => void;
+  deleteCourse: (id: string) => void;
   applyStatic: (courses: Course[], name: string) => Promise<void>;
   applyApi: (courses: Course[], periods?: Period[]) => Promise<void>;
   clearStatic: () => Promise<void>;
@@ -128,6 +131,18 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
     [activeTable],
   );
 
+  const addCourse = useCallback((course: Course) => {
+    setTables((prev) => prev.map((t) => (t.id === activeId ? { ...t, courses: [...t.courses, course], updatedAt: new Date().toISOString() } : t)));
+  }, [activeId]);
+
+  const updateCourse = useCallback((course: Course) => {
+    setTables((prev) => prev.map((t) => (t.id === activeId ? { ...t, courses: t.courses.map((c) => (c.id === course.id ? course : c)), updatedAt: new Date().toISOString() } : t)));
+  }, [activeId]);
+
+  const deleteCourse = useCallback((id: string) => {
+    setTables((prev) => prev.map((t) => (t.id === activeId ? { ...t, courses: t.courses.filter((c) => c.id !== id), updatedAt: new Date().toISOString() } : t)));
+  }, [activeId]);
+
   const applyStatic = useCallback(async (courses: Course[], name: string) => importCourses(courses, undefined, name, "static"), [importCourses]);
   const applyApi = useCallback(async (courses: Course[], periods?: Period[]) => importCourses(courses, periods, activeTable.name, "api"), [importCourses, activeTable.name]);
   const clearStatic = useCallback(async () => {
@@ -166,11 +181,14 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
       updateTable,
       deleteTable,
       importCourses,
+      addCourse,
+      updateCourse,
+      deleteCourse,
       applyStatic,
       applyApi,
       clearStatic,
     };
-  }, [activeTable, tables, activeId, week, season, setWeek, switchTable, addTable, updateTable, deleteTable, importCourses, applyStatic, applyApi, clearStatic]);
+  }, [activeTable, tables, activeId, week, season, setWeek, switchTable, addTable, updateTable, deleteTable, importCourses, addCourse, updateCourse, deleteCourse, applyStatic, applyApi, clearStatic]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

@@ -1,18 +1,21 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useMemo } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import React, { useMemo, useState } from "react";
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { CourseEditor } from "../../components/CourseEditor";
 import { ScreenStatusBar } from "../../components/ScreenStatusBar";
 import { useSchedule } from "../../lib/schedule-store";
 import { useTheme } from "../../lib/theme-context";
 import { WEEKDAYS } from "../../lib/time";
-import { Colors, courseTint, radius } from "../../theme";
+import { Colors, radius } from "../../theme";
+import { tintFor } from "../../lib/theme-presets";
 
 export default function CourseDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { byId, periods } = useSchedule();
+  const { byId, periods, preset, updateCourse, deleteCourse } = useSchedule();
   const { colors, scheme } = useTheme();
+  const [editing, setEditing] = useState(false);
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const course = byId(String(id));
 
@@ -24,7 +27,7 @@ export default function CourseDetail() {
     );
   }
 
-  const tint = courseTint(course.id, scheme);
+  const tint = tintFor(preset, course.id);
   const hours = course.weeks.length * (course.endPeriod - course.startPeriod + 1);
 
   const Row = ({ label, value, last }: { label: string; value: string; last?: boolean }) => (
@@ -57,9 +60,35 @@ export default function CourseDetail() {
         <Row label="总课时" value={String(hours)} last />
       </View>
 
+      <View style={styles.actionRow}>
+        <Pressable style={styles.editBtn} onPress={() => setEditing(true)}>
+          <Ionicons name="create-outline" size={16} color={colors.brand} />
+          <Text style={styles.editText}>编辑</Text>
+        </Pressable>
+        <Pressable
+          style={styles.deleteBtn}
+          onPress={() =>
+            Alert.alert("删除课程", `确定删除「${course.name}」？`, [
+              { text: "取消", style: "cancel" },
+              { text: "删除", style: "destructive", onPress: () => { deleteCourse(course.id); router.back(); } },
+            ])
+          }
+        >
+          <Ionicons name="trash-outline" size={16} color={colors.danger} />
+          <Text style={styles.deleteText}>删除</Text>
+        </Pressable>
+      </View>
+
       <Pressable style={styles.close} onPress={() => router.back()}>
         <Text style={styles.closeText}>关闭</Text>
       </Pressable>
+
+      <CourseEditor
+        visible={editing}
+        initial={course}
+        onClose={() => setEditing(false)}
+        onSubmit={(next) => { updateCourse(next); setEditing(false); }}
+      />
     </ScrollView>
   );
 }
@@ -95,6 +124,11 @@ const makeStyles = (colors: Colors) =>
     rowBorder: { borderBottomWidth: 1, borderBottomColor: colors.line },
     rowLabel: { flex: 1, fontSize: 13, color: colors.sub },
     rowValue: { fontSize: 13, color: colors.ink, fontWeight: "500", maxWidth: "70%", textAlign: "right" },
+    actionRow: { flexDirection: "row", gap: 10, marginTop: 20 },
+    editBtn: { flex: 1, height: 44, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.brand, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 6, backgroundColor: colors.brandSoft },
+    editText: { color: colors.brand, fontSize: 13.5, fontWeight: "600" },
+    deleteBtn: { flex: 1, height: 44, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.danger, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 6 },
+    deleteText: { color: colors.danger, fontSize: 13.5, fontWeight: "600" },
     close: { marginTop: 26, height: 44, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.fieldBorder, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center" },
     closeText: { fontSize: 14, color: colors.ink },
   });

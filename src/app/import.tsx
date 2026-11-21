@@ -5,6 +5,7 @@ import React, { useMemo, useRef, useState } from "react";
 import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { PressableScale } from "../components/Anim";
+import { CourseEditor, formatWeeks } from "../components/CourseEditor";
 import { SchoolWebView, SchoolWebViewHandle } from "../components/SchoolWebView";
 import { ScreenStatusBar } from "../components/ScreenStatusBar";
 import { Course } from "../lib/schedule";
@@ -12,7 +13,7 @@ import { useSchedule } from "../lib/schedule-store";
 import { parseStaticJson } from "../lib/static-timetable";
 import { useTheme } from "../lib/theme-context";
 import { parseTimetable, parseWeeks } from "../lib/timetable-html";
-import { Period } from "../lib/time";
+import { Period, WEEKDAYS } from "../lib/time";
 import { Colors, radius } from "../theme";
 
 type Tab = "web" | "source" | "csv" | "json";
@@ -38,6 +39,7 @@ export default function ImportScreen() {
   const [jsonText, setJsonText] = useState("");
   const [pending, setPending] = useState<Pending | null>(null);
   const [error, setError] = useState("");
+  const [editingIdx, setEditingIdx] = useState<number | null>(null);
 
   const reset = () => {
     setPending(null);
@@ -242,12 +244,42 @@ export default function ImportScreen() {
         {pending ? (
           <View style={styles.pendingCard}>
             <Text style={styles.pendingTitle}>已识别 {pending.courses.length} 门课程</Text>
-            <Text style={styles.pendingMeta}>{pending.periods.length ? `${pending.periods.length} 个节次时间` : "将使用当前课表的节次时间"}</Text>
+            <Text style={styles.pendingMeta}>
+              {pending.periods.length ? `${pending.periods.length} 个节次时间 · ` : ""}
+              {conflictCount(pending.courses) > 0 ? `${conflictCount(pending.courses)} 处时间冲突` : "无时间冲突"}
+            </Text>
+            <View style={{ marginTop: 10 }}>
+              {pending.courses.map((c, idx) => (
+                <Pressable key={c.id} style={[styles.pendingRow, idx !== pending.courses.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.line }]} onPress={() => setEditingIdx(idx)}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.pendingName} numberOfLines={1}>{c.name}</Text>
+                    <Text style={styles.pendingSub}>周{WEEKDAYS[c.weekday - 1]} · 第 {c.startPeriod}-{c.endPeriod} 节 · 第 {formatWeeks(c.weeks)} 周</Text>
+                  </View>
+                  <Pressable hitSlop={8} onPress={() => setPending({ ...pending, courses: pending.courses.filter((_, i) => i !== idx) })}>
+                    <Ionicons name="close-circle" size={18} color={colors.faint} />
+                  </Pressable>
+                </Pressable>
+              ))}
+            </View>
             <PressableScale style={styles.importBtn} onPress={apply}>
-              <Text style={styles.importText}>导入为新课表</Text>
+              <Text style={styles.importText}>导入 {pending.courses.length} 门课程</Text>
             </PressableScale>
+            <Text style={styles.pendingHint}>点击任意课程可先修改再导入</Text>
           </View>
         ) : null}
+
+        <CourseEditor
+          visible={editingIdx !== null}
+          initial={editingIdx !== null ? pending?.courses[editingIdx] : null}
+          onClose={() => setEditingIdx(null)}
+          onSubmit={(course) => {
+            if (!pending || editingIdx === null) return;
+            const next = [...pending.courses];
+            next[editingIdx] = course;
+            setPending({ ...pending, courses: next });
+            setEditingIdx(null);
+          }}
+        />
       </ScrollView>
     </View>
   );
@@ -259,6 +291,21 @@ function PressableStyleBtn({ label, onPress, colors }: { label: string; onPress:
       <Text style={[stylesBtn.text, { color: "#FFFFFF" }]}>{label}</Text>
     </Pressable>
   );
+}
+
+function conflictCount(courses: Course[]): number {
+  let count = 0;
+  for (let i = 0; i < courses.length; i++) {
+    for (let j = i + 1; j < courses.length; j++) {
+      const a = courses[i];
+      const b = courses[j];
+      if (a.weekday !== b.weekday) continue;
+      if (a.startPeriod > b.endPeriod || b.startPeriod > a.endPeriod) continue;
+      if (!a.weeks.some((w) => b.weeks.includes(w))) continue;
+      count++;
+    }
+  }
+  return count;
 }
 
 function parseCsvText(text: string): { courses: Course[]; periods: Period[] } {
@@ -328,6 +375,10 @@ const makeStyles = (colors: Colors) =>
     pendingCard: { marginTop: 14, padding: 14, borderRadius: radius.md, borderWidth: 1, borderColor: colors.infoBorder, backgroundColor: colors.infoBg },
     pendingTitle: { fontSize: 13.5, fontWeight: "600", color: colors.ink },
     pendingMeta: { fontSize: 11.5, color: colors.sub, marginTop: 4 },
+    pendingRow: { flexDirection: "row", alignItems: "center", paddingVertical: 9, gap: 8 },
+    pendingName: { fontSize: 13, color: colors.ink, fontWeight: "500" },
+    pendingSub: { fontSize: 10.5, color: colors.faint, marginTop: 3 },
+    pendingHint: { fontSize: 10.5, color: colors.faint, textAlign: "center", marginTop: 8 },
     importBtn: { marginTop: 12, height: 42, borderRadius: radius.sm, backgroundColor: colors.brand, alignItems: "center", justifyContent: "center" },
     importText: { color: "#FFFFFF", fontSize: 13.5, fontWeight: "600" },
   });
