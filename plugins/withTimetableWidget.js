@@ -186,7 +186,7 @@ class WeekWidgetProvider : AppWidgetProvider() {
       val arr = day?.optJSONArray("lines")
       if (arr != null) {
         for (j in 0 until arr.length()) {
-          if (j > 0) lines.append("\n")
+          if (j > 0) lines.append("\\n")
           lines.append(arr.optString(j))
         }
       }
