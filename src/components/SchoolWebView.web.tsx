@@ -11,6 +11,7 @@ type Props = {
   onMessage: (data: any) => void;
   onNav?: (url: string) => void;
   onLoadEnd?: () => void;
+  userAgent?: string;
 };
 
 /** WebView 仅移动端可用，Web 端给出提示 */

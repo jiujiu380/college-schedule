@@ -1,237 +1,333 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
-import * as DocumentPicker from "expo-document-picker";
 import { useRouter } from "expo-router";
-import React, { useMemo, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import React, { useMemo, useRef, useState } from "react";
+import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { PressableScale } from "../components/Anim";
+import { SchoolWebView, SchoolWebViewHandle } from "../components/SchoolWebView";
 import { ScreenStatusBar } from "../components/ScreenStatusBar";
+import { Course } from "../lib/schedule";
 import { useSchedule } from "../lib/schedule-store";
-import { SAMPLE_JSON, parseStaticJson, readPickedFile } from "../lib/static-timetable";
-import { parseTimetable } from "../lib/timetable-html";
+import { parseStaticJson } from "../lib/static-timetable";
 import { useTheme } from "../lib/theme-context";
+import { parseTimetable, parseWeeks } from "../lib/timetable-html";
+import { Period } from "../lib/time";
 import { Colors, radius } from "../theme";
+
+type Tab = "web" | "source" | "csv" | "json";
+type Pending = { courses: Course[]; periods: Period[]; name: string };
+
+const DESKTOP_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0 Safari/537.36";
 
 export default function ImportScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { applyStatic, applyApi, clearStatic, staticMeta, source, courses } = useSchedule();
-  const [htmlText, setHtmlText] = useState("");
   const { colors, scheme } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const [text, setText] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [preview, setPreview] = useState<{ count: number; name: string; warnings: string[]; weeks: string } | null>(null);
+  const { importCourses, activeTable } = useSchedule();
+  const webRef = useRef<SchoolWebViewHandle>(null);
 
-  const parse = (raw: string) => {
-    setText(raw);
-    setPreview(null);
-    setError(null);
-    if (!raw.trim()) return;
-    const res = parseStaticJson(raw);
+  const [tab, setTab] = useState<Tab>("web");
+  const [url, setUrl] = useState("https://zyjwxt.imau.edu.cn/academic/index.jsp");
+  const [liveUrl, setLiveUrl] = useState(url);
+  const [desktop, setDesktop] = useState(false);
+  const [webStatus, setWebStatus] = useState("登录后打开课表页，再点「识别导入」");
+  const [sourceText, setSourceText] = useState("");
+  const [csvText, setCsvText] = useState("");
+  const [jsonText, setJsonText] = useState("");
+  const [pending, setPending] = useState<Pending | null>(null);
+  const [error, setError] = useState("");
+
+  const reset = () => {
+    setPending(null);
+    setError("");
+  };
+
+  const handleHtml = (html: string) => {
+    if (!html || html.length < 500) {
+      setWebStatus("页面内容太少，请确认已登录并打开课表");
+      return;
+    }
+    if (/统一身份认证|请输入用户名|login\.jsp/i.test(html) && !/第\s*\d+\s*节/.test(html)) {
+      setWebStatus("当前还是登录页，请先完成登录再打开课表");
+      return;
+    }
+    const parsed = parseTimetable(html);
+    if (!parsed.courses.length) {
+      setWebStatus("没有识别到课程，可切到「粘贴源码」把页面源码发我适配");
+      return;
+    }
+    setWebStatus(`识别到 ${parsed.courses.length} 门课程，确认后可导入`);
+    setPending({ courses: parsed.courses, periods: parsed.periods, name: `导入课表 ${new Date().getMonth() + 1}/${new Date().getDate()}` });
+  };
+
+  const onMessage = (data: any) => {
+    if (data?.type === "html") handleHtml(String(data.html ?? ""));
+    if (data?.type === "error") setWebStatus("读取失败：" + String(data.message ?? ""));
+  };
+
+  const onRecognize = () => {
+    setWebStatus("正在读取当前页面…");
+    webRef.current?.readHtml();
+  };
+
+  const parseSource = () => {
+    reset();
+    const parsed = parseTimetable(sourceText);
+    if (!parsed.courses.length) {
+      setError("没有解析到课程。请确认粘贴的是课表页源码（含课表表格），或改用网页导入。");
+      return;
+    }
+    setPending({ courses: parsed.courses, periods: parsed.periods, name: "源码导入课表" });
+  };
+
+  const parseCsv = () => {
+    reset();
+    const { courses, periods } = parseCsvText(csvText);
+    if (!courses.length) {
+      setError("CSV 没有解析到课程。格式：课程名,星期,开始节,结束节,周次,教师,地点");
+      return;
+    }
+    setPending({ courses, periods, name: "CSV 导入课表" });
+  };
+
+  const parseJson = () => {
+    reset();
+    const res = parseStaticJson(jsonText);
     if (!res.ok) {
       setError(res.error);
       return;
     }
-    const allWeeks = Array.from(new Set(res.courses.flatMap((c) => c.weeks))).sort((a, b) => a - b);
-    setPreview({
-      count: res.courses.length,
-      name: res.name,
-      warnings: res.warnings,
-      weeks: allWeeks.length ? `第 ${allWeeks[0]}-${allWeeks[allWeeks.length - 1]} 周` : "—",
-    });
+    setPending({ courses: res.courses, periods: [], name: res.name });
   };
 
-  const onPaste = async () => {
-    try {
-      const clip = await Clipboard.getStringAsync();
-      if (!clip?.trim()) {
-        Alert.alert("剪贴板为空", "请先复制课表 JSON 内容。");
-        return;
-      }
-      parse(clip);
-    } catch {
-      Alert.alert("读取剪贴板失败", "请手动粘贴 JSON 内容。");
-    }
-  };
-
-  const onPick = async () => {
-    try {
-      const res = await DocumentPicker.getDocumentAsync({ type: ["application/json", "text/plain", "*/*"], copyToCacheDirectory: true, multiple: false });
-      if (res.canceled || !res.assets?.length) return;
-      parse(await readPickedFile(res.assets[0].uri));
-    } catch {
-      Alert.alert("读取文件失败", "请确认文件为 UTF-8 编码的 JSON，或改用粘贴方式。");
-    }
-  };
-
-  const onImport = async () => {
-    if (!preview || !text.trim()) return;
-    const res = parseStaticJson(text);
-    if (!res.ok) {
-      setError(res.error);
-      return;
-    }
-    await applyStatic(res.courses, res.name);
-    Alert.alert("导入成功", `已导入 ${res.courses.length} 门课程，课表页将标注为“静态课表”。`);
+  const apply = async () => {
+    if (!pending) return;
+    await importCourses(pending.courses, pending.periods, pending.name, "static");
+    Alert.alert("导入成功", `已新建课表「${pending.name}」，共 ${pending.courses.length} 门课程。`);
     router.replace("/schedule");
   };
 
-  const onClear = () => {
-    Alert.alert("清除静态课表", "清除后将恢复演示数据（接口接入后为真实课表）。", [
-      { text: "取消", style: "cancel" },
-      { text: "清除", style: "destructive", onPress: async () => { await clearStatic(); setPreview(null); setText(""); Alert.alert("已清除", "已恢复默认数据源。"); } },
-    ]);
-  };
-
-  const status = source === "static" && staticMeta
-    ? `静态课表 · ${staticMeta.count} 门 · 导入于 ${new Date(staticMeta.importedAt).toLocaleString("zh-CN", { hour12: false })}`
-    : source === "api"
-      ? "教务接口 · 实时数据"
-      : `演示数据 · ${courses.length} 门（尚未接入接口）`;
+  const tabs: { key: Tab; label: string }[] = [
+    { key: "web", label: "网页导入" },
+    { key: "source", label: "源码" },
+    { key: "csv", label: "CSV" },
+    { key: "json", label: "JSON" },
+  ];
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 28 }} showsVerticalScrollIndicator={false}>
+    <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <ScreenStatusBar style={scheme === "dark" ? "light" : "dark"} />
-
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>为什么要导入静态课表</Text>
-        <Text style={styles.cardText}>课表接口只在校内网可用。离开校园网、接口维护或故障时，可用一份导入的课表作为备选，保证随时能查到上课信息。接口恢复后重新登录即可切换回实时数据，两者不会混淆。</Text>
+      <View style={styles.tabs}>
+        {tabs.map((t) => (
+          <Pressable key={t.key} onPress={() => { setTab(t.key); reset(); }} style={[styles.tab, tab === t.key && styles.tabActive]}>
+            <Text style={[styles.tabText, tab === t.key && { color: colors.brand, fontWeight: "600" }]}>{t.label}</Text>
+          </Pressable>
+        ))}
       </View>
 
-      <View style={[styles.card, { marginTop: 12 }]}>
-        <Text style={styles.label}>当前数据源</Text>
-        <Text style={styles.value}>{status}</Text>
-        {source === "static" ? (
-          <Pressable style={styles.clearBtn} onPress={onClear}><Text style={styles.clearText}>清除静态课表</Text></Pressable>
+      <ScrollView contentContainerStyle={{ padding: 14, paddingBottom: insets.bottom + 24 }} showsVerticalScrollIndicator={false}>
+        {tab === "web" ? (
+          <>
+            <View style={styles.urlRow}>
+              <TextInput
+                value={url}
+                onChangeText={setUrl}
+                placeholder="输入教务系统网址"
+                placeholderTextColor={colors.faint}
+                autoCapitalize="none"
+                autoCorrect={false}
+                style={styles.urlInput}
+              />
+              <Pressable style={styles.goBtn} onPress={() => setLiveUrl(url.trim())}>
+                <Text style={styles.goText}>打开</Text>
+              </Pressable>
+            </View>
+
+            <View style={styles.modeRow}>
+              <View style={styles.segment}>
+                {[{ k: false, l: "手机模式" }, { k: true, l: "电脑模式" }].map((m) => (
+                  <Pressable key={String(m.k)} onPress={() => setDesktop(m.k)} style={[styles.segmentItem, desktop === m.k && styles.segmentActive]}>
+                    <Text style={[styles.segmentText, desktop === m.k && { color: colors.brand, fontWeight: "600" }]}>{m.l}</Text>
+                  </Pressable>
+                ))}
+              </View>
+              <Pressable style={styles.recognizeBtn} onPress={onRecognize}>
+                <Ionicons name="scan-outline" size={14} color="#FFFFFF" />
+                <Text style={styles.recognizeText}>识别导入</Text>
+              </Pressable>
+            </View>
+
+            <Text style={styles.status}>{webStatus}</Text>
+
+            <View style={styles.webBox}>
+              <SchoolWebView
+                key={liveUrl + String(desktop)}
+                ref={webRef}
+                uri={liveUrl}
+                userAgent={desktop ? DESKTOP_UA : undefined}
+                onMessage={onMessage}
+                onNav={(u) => setWebStatus("当前页面：" + u.slice(0, 60))}
+              />
+            </View>
+          </>
         ) : null}
-      </View>
 
-      <Text style={styles.section}>导入内容（JSON）</Text>
-      <TextInput
-        value={text}
-        onChangeText={parse}
-        placeholder={'{\n  "name": "2026 秋季学期",\n  "courses": [ ... ]\n}'}
-        placeholderTextColor={colors.faint}
-        multiline
-        textAlignVertical="top"
-        style={styles.textarea}
-        autoCapitalize="none"
-        autoCorrect={false}
-      />
+        {tab === "source" ? (
+          <>
+            <Text style={styles.hint}>浏览器打开课表页 → 右键「查看网页源代码」→ 全选复制 → 粘贴到这里。</Text>
+            <TextInput
+              value={sourceText}
+              onChangeText={setSourceText}
+              placeholder="粘贴课表网页 HTML 源码…"
+              placeholderTextColor={colors.faint}
+              multiline
+              textAlignVertical="top"
+              style={styles.textarea}
+            />
+            <View style={styles.btnRow}>
+              <Pressable style={styles.ghostBtn} onPress={async () => { const t = await Clipboard.getStringAsync(); if (t) setSourceText(t); }}>
+                <Text style={styles.ghostText}>粘贴</Text>
+              </Pressable>
+              <PressableStyleBtn label="解析" onPress={parseSource} colors={colors} />
+            </View>
+          </>
+        ) : null}
 
-      <View style={styles.btnRow}>
-        <Pressable style={styles.ghostBtn} onPress={onPaste}>
-          <Ionicons name="clipboard-outline" size={14} color={colors.ink} />
-          <Text style={styles.ghostText}>粘贴</Text>
-        </Pressable>
-        <Pressable style={styles.ghostBtn} onPress={onPick}>
-          <Ionicons name="folder-open-outline" size={14} color={colors.ink} />
-          <Text style={styles.ghostText}>选择文件</Text>
-        </Pressable>
-        <Pressable style={styles.ghostBtn} onPress={() => parse(SAMPLE_JSON)}>
-          <Ionicons name="document-text-outline" size={14} color={colors.ink} />
-          <Text style={styles.ghostText}>填入示例</Text>
-        </Pressable>
-      </View>
+        {tab === "csv" ? (
+          <>
+            <Text style={styles.hint}>每行一门课：课程名,星期(周一/1),开始节,结束节,周次(1-16 或 1-16,18),教师,地点</Text>
+            <TextInput
+              value={csvText}
+              onChangeText={setCsvText}
+              placeholder={"高等数学,周一,1,2,1-16,张伟,致远楼302"}
+              placeholderTextColor={colors.faint}
+              multiline
+              textAlignVertical="top"
+              style={styles.textarea}
+            />
+            <View style={styles.btnRow}>
+              <Pressable style={styles.ghostBtn} onPress={async () => { const t = await Clipboard.getStringAsync(); if (t) setCsvText(t); }}>
+                <Text style={styles.ghostText}>粘贴</Text>
+              </Pressable>
+              <PressableStyleBtn label="解析" onPress={parseCsv} colors={colors} />
+            </View>
+          </>
+        ) : null}
 
-      {error ? (
-        <View style={styles.errorBox}>
-          <Ionicons name="alert-circle-outline" size={14} color={colors.danger} />
-          <Text style={styles.errorText}>{error}</Text>
-        </View>
-      ) : null}
+        {tab === "json" ? (
+          <>
+            <Text style={styles.hint}>支持之前约定的 JSON 格式，适合从其他课表工具导出。</Text>
+            <TextInput
+              value={jsonText}
+              onChangeText={setJsonText}
+              placeholder={'{"name":"课表","courses":[...]}'}
+              placeholderTextColor={colors.faint}
+              multiline
+              textAlignVertical="top"
+              style={styles.textarea}
+            />
+            <View style={styles.btnRow}>
+              <Pressable style={styles.ghostBtn} onPress={async () => { const t = await Clipboard.getStringAsync(); if (t) setJsonText(t); }}>
+                <Text style={styles.ghostText}>粘贴</Text>
+              </Pressable>
+              <PressableStyleBtn label="解析" onPress={parseJson} colors={colors} />
+            </View>
+          </>
+        ) : null}
 
-      {preview ? (
-        <View style={[styles.card, { marginTop: 12 }]}>
-          <View style={styles.previewHead}>
-            <Ionicons name="checkmark-circle" size={16} color={colors.success} />
-            <Text style={styles.previewTitle}>解析成功</Text>
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+
+        {pending ? (
+          <View style={styles.pendingCard}>
+            <Text style={styles.pendingTitle}>已识别 {pending.courses.length} 门课程</Text>
+            <Text style={styles.pendingMeta}>{pending.periods.length ? `${pending.periods.length} 个节次时间` : "将使用当前课表的节次时间"}</Text>
+            <PressableScale style={styles.importBtn} onPress={apply}>
+              <Text style={styles.importText}>导入为新课表</Text>
+            </PressableScale>
           </View>
-          <Text style={styles.previewLine}>课表名称：{preview.name}</Text>
-          <Text style={styles.previewLine}>课程数量：{preview.count} 门</Text>
-          <Text style={styles.previewLine}>覆盖周次：{preview.weeks}</Text>
-          {preview.warnings.length ? <Text style={styles.warnText}>已跳过 {preview.warnings.length} 条：{preview.warnings[0]}</Text> : null}
-          <PressableScale style={styles.primaryBtn} onPress={onImport}>
-            <Text style={styles.primaryText}>导入并设为当前课表</Text>
-          </PressableScale>
-        </View>
-      ) : null}
-
-      <Text style={styles.section}>从教务网页导入（无需登录）</Text>
-      <View style={styles.card}>
-        <Text style={styles.cardText}>
-          在浏览器打开教务课表页 → 右键「查看网页源代码」→ 全选复制，粘贴到下面即可离线解析。适用于已保存的课表网页。
-        </Text>
-        <TextInput
-          value={htmlText}
-          onChangeText={setHtmlText}
-          placeholder="粘贴课表网页 HTML 源码…"
-          placeholderTextColor={colors.faint}
-          multiline
-          textAlignVertical="top"
-          style={[styles.textarea, { height: 120, marginTop: 10 }]}
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
-        <View style={styles.btnRow}>
-          <Pressable style={styles.ghostBtn} onPress={async () => {
-            const clip = await Clipboard.getStringAsync();
-            if (clip) setHtmlText(clip);
-          }}>
-            <Ionicons name="clipboard-outline" size={14} color={colors.ink} />
-            <Text style={styles.ghostText}>粘贴</Text>
-          </Pressable>
-          <Pressable
-            style={[styles.ghostBtn, { flex: 2, borderColor: colors.brand, backgroundColor: colors.brandSoft }]}
-            onPress={async () => {
-              const parsed = parseTimetable(htmlText);
-              if (!parsed.courses.length) {
-                Alert.alert("没有解析到课程", "请确认粘贴的是课表页源码（包含 table id=\"timetable\"），也可以直接把文件发给开发者。");
-                return;
-              }
-              await applyApi(parsed.courses, parsed.periods);
-              Alert.alert("导入成功", `共 ${parsed.courses.length} 门课程，已按页面节次时间展示。`);
-              router.replace("/schedule");
-            }}
-          >
-            <Text style={[styles.ghostText, { color: colors.brand, fontWeight: "600" }]}>解析并应用</Text>
-          </Pressable>
-        </View>
-      </View>
-
-      <Text style={styles.section}>字段格式</Text>
-      <View style={styles.card}>
-        <Text style={styles.code}>{'{\n  "name": "课表名称",\n  "courses": [\n    {\n      "name": "课程名",\n      "teacher": "教师",\n      "location": "教室",\n      "weekday": "周一",\n      "periods": "1-2",\n      "weeks": "1-16",\n      "credit": 3\n    }\n  ]\n}'}</Text>
-        <Text style={styles.tip}>weekday 可写 1-7 或“周一”；periods 可写 "1-2" 或 startPeriod/endPeriod；weeks 支持 "1-16"、"1-16,18"、"4-12/2" 或数组。</Text>
-      </View>
-    </ScrollView>
+        ) : null}
+      </ScrollView>
+    </View>
   );
 }
 
+function PressableStyleBtn({ label, onPress, colors }: { label: string; onPress: () => void; colors: Colors }) {
+  return (
+    <Pressable style={[stylesBtn.btn, { backgroundColor: colors.brand, borderColor: colors.brand }]} onPress={onPress}>
+      <Text style={[stylesBtn.text, { color: "#FFFFFF" }]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+function parseCsvText(text: string): { courses: Course[]; periods: Period[] } {
+  const courses: Course[] = [];
+  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  let id = 0;
+  for (const line of lines) {
+    const cols = line.split(/[,\t]/).map((s) => s.trim());
+    if (cols.length < 5) continue;
+    if (/课程名|名称/.test(cols[0])) continue;
+    const [name, dayRaw, startRaw, endRaw, weeksRaw, teacher, location] = cols;
+    const weekday = parseWeekday(dayRaw);
+    const start = Number(startRaw);
+    const end = Number(endRaw) || start;
+    if (!name || !weekday || !start) continue;
+    courses.push({
+      id: `csv-${++id}`,
+      name,
+      teacher: teacher || undefined,
+      location: location || undefined,
+      weekday,
+      startPeriod: start,
+      endPeriod: end,
+      weeks: weeksRaw ? parseWeeks(weeksRaw) : Array.from({ length: 20 }, (_, i) => i + 1),
+    });
+  }
+  return { courses, periods: [] };
+}
+
+function parseWeekday(v: string): number {
+  const map: Record<string, number> = { 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 日: 7, 天: 7 };
+  const s = v.replace(/周|星期/g, "").trim();
+  if (/^[1-7]$/.test(s)) return Number(s);
+  return map[s] ?? 0;
+}
+
+const stylesBtn = StyleSheet.create({
+  btn: { flex: 1, height: 40, borderRadius: 4, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  text: { fontSize: 13, fontWeight: "600" },
+});
+
 const makeStyles = (colors: Colors) =>
   StyleSheet.create({
-    card: { backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, padding: 14 },
-    cardTitle: { fontSize: 13.5, fontWeight: "600", color: colors.ink },
-    cardText: { fontSize: 12, color: colors.sub, lineHeight: 19, marginTop: 8 },
-    label: { fontSize: 11.5, color: colors.faint },
-    value: { fontSize: 12.5, color: colors.ink, marginTop: 6 },
-    clearBtn: { marginTop: 12, height: 36, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.danger, alignItems: "center", justifyContent: "center" },
-    clearText: { fontSize: 12.5, color: colors.danger },
-    section: { fontSize: 12, color: colors.faint, marginTop: 20, marginBottom: 8, marginLeft: 2 },
-    textarea: { height: 170, borderWidth: 1, borderColor: colors.fieldBorder, borderRadius: radius.sm, padding: 10, fontSize: 11.5, lineHeight: 17, color: colors.ink, backgroundColor: colors.fieldBg, fontFamily: "monospace" as any },
-    btnRow: { flexDirection: "row", gap: 8, marginTop: 10 },
-    ghostBtn: { flex: 1, height: 38, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.fieldBorder, backgroundColor: colors.surface, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4 },
-    ghostText: { fontSize: 12.5, color: colors.ink },
-    errorBox: { flexDirection: "row", gap: 6, alignItems: "flex-start", backgroundColor: colors.danger + "18", borderWidth: 1, borderColor: colors.danger + "55", borderRadius: radius.sm, padding: 10, marginTop: 10 },
-    errorText: { flex: 1, fontSize: 11.5, color: colors.danger, lineHeight: 17 },
-    previewHead: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 },
-    previewTitle: { fontSize: 13, fontWeight: "600", color: colors.ink },
-    previewLine: { fontSize: 12, color: colors.sub, marginBottom: 4 },
-    warnText: { fontSize: 11, color: colors.warnText, marginTop: 4 },
-    primaryBtn: { marginTop: 12, height: 42, borderRadius: radius.sm, backgroundColor: colors.brand, alignItems: "center", justifyContent: "center" },
-    primaryText: { color: "#FFFFFF", fontSize: 13.5, fontWeight: "600" },
-    code: { fontSize: 10.5, color: colors.sub, lineHeight: 16, fontFamily: "monospace" as any },
-    tip: { fontSize: 11, color: colors.faint, lineHeight: 17, marginTop: 10 },
+    tabs: { flexDirection: "row", gap: 6, paddingHorizontal: 12, paddingTop: 8, paddingBottom: 6, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.line },
+    tab: { flex: 1, height: 32, borderRadius: radius.sm, alignItems: "center", justifyContent: "center", backgroundColor: colors.chipBg },
+    tabActive: { backgroundColor: colors.brandSoft },
+    tabText: { fontSize: 12.5, color: colors.sub },
+    urlRow: { flexDirection: "row", gap: 8 },
+    urlInput: { flex: 1, height: 38, borderWidth: 1, borderColor: colors.fieldBorder, borderRadius: radius.sm, paddingHorizontal: 10, fontSize: 12, color: colors.ink, backgroundColor: colors.fieldBg },
+    goBtn: { width: 54, height: 38, borderRadius: radius.sm, backgroundColor: colors.brand, alignItems: "center", justifyContent: "center" },
+    goText: { color: "#FFFFFF", fontSize: 12.5, fontWeight: "600" },
+    modeRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 10 },
+    segment: { flexDirection: "row", backgroundColor: colors.chipBg, borderRadius: radius.sm, padding: 2, gap: 2 },
+    segmentItem: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 3 },
+    segmentActive: { backgroundColor: colors.surface },
+    segmentText: { fontSize: 11.5, color: colors.sub },
+    recognizeBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, height: 34, borderRadius: radius.sm, backgroundColor: colors.brand },
+    recognizeText: { color: "#FFFFFF", fontSize: 12, fontWeight: "600" },
+    status: { fontSize: 11, color: colors.faint, marginTop: 8 },
+    webBox: { height: 420, marginTop: 8, borderRadius: radius.md, overflow: "hidden", borderWidth: 1, borderColor: colors.line },
+    hint: { fontSize: 11.5, color: colors.faint, lineHeight: 17, marginBottom: 8 },
+    textarea: { height: 220, borderWidth: 1, borderColor: colors.fieldBorder, borderRadius: radius.sm, padding: 10, fontSize: 11.5, color: colors.ink, backgroundColor: colors.fieldBg, fontFamily: "monospace" as any },
+    btnRow: { flexDirection: "row", gap: 10, marginTop: 10 },
+    ghostBtn: { flex: 1, height: 40, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.fieldBorder, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface },
+    ghostText: { fontSize: 13, color: colors.ink },
+    error: { fontSize: 11.5, color: colors.danger, marginTop: 10, lineHeight: 17 },
+    pendingCard: { marginTop: 14, padding: 14, borderRadius: radius.md, borderWidth: 1, borderColor: colors.infoBorder, backgroundColor: colors.infoBg },
+    pendingTitle: { fontSize: 13.5, fontWeight: "600", color: colors.ink },
+    pendingMeta: { fontSize: 11.5, color: colors.sub, marginTop: 4 },
+    importBtn: { marginTop: 12, height: 42, borderRadius: radius.sm, backgroundColor: colors.brand, alignItems: "center", justifyContent: "center" },
+    importText: { color: "#FFFFFF", fontSize: 13.5, fontWeight: "600" },
   });

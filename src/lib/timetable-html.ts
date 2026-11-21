@@ -16,7 +16,7 @@ export type ParsedTimetable = {
  */
 export function parseTimetable(html: string): ParsedTimetable {
   const table = html.match(/<table[^>]*id=["']timetable["'][\s\S]*?<\/table>/i)?.[0];
-  if (!table) return { courses: [], periods: [] };
+  if (!table) return parseGenericTimetable(html);
 
   const rows = [...table.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)].map((m) => m[1]);
   const periods: Period[] = [];
@@ -115,6 +115,99 @@ export function parseTimetable(html: string): ParsedTimetable {
 
   const title = html.match(/<title>([\s\S]*?)<\/title>/i)?.[1]?.trim();
   return { courses, periods: periods.sort((a, b) => a.no - b.no), title };
+}
+
+
+/** 通用表格解析：适配正方 / 强智 / URP / 优慕课 等常见课表表格 */
+export function parseGenericTimetable(html: string): ParsedTimetable {
+  const clean = String(html).replace(/<script[\s\S]*?<\/script>/gi, "").replace(/<style[\s\S]*?<\/style>/gi, "");
+  const tables = [...clean.matchAll(/<table[\s\S]*?<\/table>/gi)].map((m) => m[0]);
+
+  for (const table of tables) {
+    const rows = [...table.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)].map((m) => m[1]);
+    if (rows.length < 4) continue;
+
+    const grid = rows.map((row) =>
+      [...row.matchAll(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi)].map((m) =>
+        m[1]
+          .replace(/<br\s*\/?>/gi, "\n")
+          .replace(/<[^>]+>/g, "")
+          .replace(/&lt;/g, "<")
+          .replace(/&gt;/g, ">")
+          .replace(/&nbsp;/g, " ")
+          .split("\n")
+          .map((s) => s.trim())
+          .filter(Boolean),
+      ),
+    );
+
+    const headerIdx = grid.findIndex((cells) => cells.filter((c) => c.some((s) => /周[一二三四五六日天]|星期一|星期二/.test(s))).length >= 3);
+    if (headerIdx < 0) continue;
+
+    const header = grid[headerIdx].map((c) => c.join(" "));
+    const dayCols: number[] = [];
+    for (let i = 0; i < header.length; i++) {
+      if (/周[一二三四五六日天]|星期[一二三四五六日天]/.test(header[i])) dayCols.push(i);
+    }
+    if (dayCols.length < 2) continue;
+
+    const periods: Period[] = [];
+    const entries: { weekday: number; period: number; name: string; teacher?: string; location?: string; weeks: number[] }[] = [];
+
+    for (let r = headerIdx + 1; r < grid.length; r++) {
+      const cells = grid[r];
+      if (!cells?.length) continue;
+      const label = cells[0]?.join(" ") ?? "";
+      const pm = label.match(/(\d{1,2})\s*[-~]\s*(\d{1,2})/) ?? label.match(/第?(\d{1,2})\s*节/);
+      if (!pm) continue;
+      const start = Number(pm[1]);
+      const end = pm[2] ? Number(pm[2]) : start;
+      const tm = label.match(/(\d{1,2}:\d{2})\s*[-~至]\s*(\d{1,2}:\d{2})/);
+      if (tm && !periods.some((p) => p.no === start)) periods.push({ no: start, start: tm[1], end: tm[2] });
+
+      dayCols.forEach((col, idx) => {
+        const cell = cells[col] ?? [];
+        if (!cell.length) return;
+        const lines = cell.filter((s) => s && !/^(无|空|—|-)$/.test(s));
+        if (!lines.length) return;
+        const name = lines[0].replace(/^<<|>>$/g, "").replace(/[【[]/g, "").replace(/[】\]]/g, "");
+        if (/^(午休|中午|休息)$/.test(name)) return;
+        const joined = lines.join(" ");
+        const weeks = parseWeeks(joined.match(/[\d,\-~]{1,20}\s*周/) ? joined.match(/[\d,\-~]{1,20}\s*周/)![0] : "");
+        const teacher = lines.find((s) => /^[\u4e00-\u9fa5]{2,4}$/.test(s) && s !== name);
+        const location = lines.find((s) => /楼|室|馆|场|中心|实训/.test(s));
+        for (let p = start; p <= end; p++) entries.push({ weekday: idx + 1, period: p, name, teacher, location, weeks });
+      });
+    }
+
+    if (entries.length < 3) continue;
+
+    const groups = new Map<string, { weekday: number; name: string; teacher?: string; location?: string; weeks: number[]; periods: number[] }>();
+    for (const e of entries) {
+      const key = [e.weekday, e.name, e.teacher ?? "", e.weeks.join(",")].join("|");
+      const g = groups.get(key) ?? { ...e, periods: [] };
+      g.periods.push(e.period);
+      groups.set(key, g);
+    }
+
+    const courses: Course[] = [];
+    let id = 0;
+    for (const g of groups.values()) {
+      const ps = Array.from(new Set(g.periods)).sort((a, b) => a - b);
+      courses.push({
+        id: `gen-${++id}`,
+        name: g.name,
+        teacher: g.teacher,
+        location: g.location,
+        weekday: g.weekday,
+        startPeriod: ps[0],
+        endPeriod: ps[ps.length - 1],
+        weeks: g.weeks.length ? g.weeks : rangeWeeks(1, 20),
+      });
+    }
+    if (courses.length) return { courses, periods: periods.sort((a, b) => a.no - b.no) };
+  }
+  return { courses: [], periods: [] };
 }
 
 export function parseWeeks(s: string): number[] {

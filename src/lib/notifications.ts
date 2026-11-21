@@ -15,6 +15,17 @@ Notifications.setNotificationHandler({
 
 const CHANNEL_ID = "class-reminders";
 export const NOTIFY_KEY = "college.notify.enabled.v1";
+const LEAD_KEY = "college.notify.lead.v1";
+
+export async function getLeadMinutes(): Promise<number> {
+  const raw = await AsyncStorage.getItem(LEAD_KEY);
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? n : 10;
+}
+
+export async function setLeadMinutes(minutes: number): Promise<void> {
+  await AsyncStorage.setItem(LEAD_KEY, String(minutes));
+}
 
 export async function isNotifyEnabled(): Promise<boolean> {
   return (await AsyncStorage.getItem(NOTIFY_KEY)) === "1";

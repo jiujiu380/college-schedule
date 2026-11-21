@@ -11,11 +11,12 @@ type Props = {
   onMessage: (data: any) => void;
   onNav?: (url: string) => void;
   onLoadEnd?: () => void;
+  userAgent?: string;
 };
 
 const AnyWebView = WebView as unknown as React.ComponentType<any>;
 
-export const SchoolWebView = forwardRef<SchoolWebViewHandle, Props>(function SchoolWebView({ uri, onMessage, onNav, onLoadEnd }, ref) {
+export const SchoolWebView = forwardRef<SchoolWebViewHandle, Props>(function SchoolWebView({ uri, onMessage, onNav, onLoadEnd, userAgent }, ref) {
   const webRef = useRef<any>(null);
 
   useImperativeHandle(ref, () => ({
@@ -40,6 +41,7 @@ export const SchoolWebView = forwardRef<SchoolWebViewHandle, Props>(function Sch
     <AnyWebView
       ref={webRef}
       source={{ uri }}
+      userAgent={userAgent}
       onMessage={(e: any) => {
         try {
           onMessage(JSON.parse(e.nativeEvent.data));

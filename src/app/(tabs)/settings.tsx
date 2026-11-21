@@ -4,34 +4,35 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Alert, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScreenStatusBar } from "../../components/ScreenStatusBar";
-import { useAuth } from "../../lib/auth";
-import { cancelAllReminders, ensureNotifyPermission, isNotifyEnabled, scheduleClassReminders, setNotifyEnabled } from "../../lib/notifications";
+import { cancelAllReminders, ensureNotifyPermission, getLeadMinutes, isNotifyEnabled, scheduleClassReminders, setLeadMinutes, setNotifyEnabled } from "../../lib/notifications";
 import { useSchedule } from "../../lib/schedule-store";
-import { DEFAULT_SETUP, SchoolSetup, loadSetup } from "../../lib/school-setup";
 import { useTheme } from "../../lib/theme-context";
 import { useUpdate } from "../../lib/update-store";
+import { THEME_PRESETS } from "../../lib/theme-presets";
 import { Colors, ThemeMode, radius } from "../../theme";
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { studentId, status, signOut } = useAuth();
-  const { courses, periods, seasonText, source } = useSchedule();
   const { mode, setMode, colors, scheme } = useTheme();
-  const { result: updateResult, checking: updateChecking } = useUpdate();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const [setup, setSetup] = useState<SchoolSetup>(DEFAULT_SETUP);
+  const {
+    tables, activeId, switchTable, addTable, deleteTable, updateTable,
+    courses, periods, ui, preset, seasonText, source, activeTable,
+  } = useSchedule();
+  const { result: updateResult, checking: updateChecking } = useUpdate();
   const [notify, setNotify] = useState(false);
+  const [lead, setLead] = useState(10);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    loadSetup().then(setSetup);
     isNotifyEnabled().then(setNotify);
+    getLeadMinutes().then(setLead);
   }, []);
 
   const onToggleNotify = async (next: boolean) => {
     if (Platform.OS === "web") {
-      Alert.alert("暂不支持", "网页版无法申请通知权限，请在手机端（开发包或 APK）中开启。");
+      Alert.alert("暂不支持", "网页版无法申请通知权限，请在手机端（APK）中开启。");
       return;
     }
     if (busy) return;
@@ -40,13 +41,13 @@ export default function SettingsScreen() {
       if (next) {
         const granted = await ensureNotifyPermission();
         if (!granted) {
-          Alert.alert("通知权限未开启", "请在系统设置中允许「课表系统」发送通知后重试。");
+          Alert.alert("通知权限未开启", "请在系统设置中允许发送通知后重试。");
           return;
         }
-        const count = await scheduleClassReminders(courses, periods, { days: 14, leadMinutes: 10 });
+        const count = await scheduleClassReminders(courses, periods, { days: 14, leadMinutes: lead });
         await setNotifyEnabled(true);
         setNotify(true);
-        Alert.alert("已开启上课提醒", `已按照${seasonText}为未来两周排期 ${count} 条提醒。`);
+        Alert.alert("已开启", `已按提前 ${lead} 分钟排期 ${count} 条提醒。`);
       } else {
         await cancelAllReminders();
         await setNotifyEnabled(false);
@@ -57,101 +58,97 @@ export default function SettingsScreen() {
     }
   };
 
-  const onSignOut = () => {
-    Alert.alert("退出登录", "确定要退出当前账号吗？", [
+  const onLead = async (v: number) => {
+    setLead(v);
+    await setLeadMinutes(v);
+    if (notify) {
+      await scheduleClassReminders(courses, periods, { days: 14, leadMinutes: v });
+      Alert.alert("已更新", `提醒提前量改为 ${v} 分钟，已重新排期。`);
+    }
+  };
+
+  const onAdd = () => addTable(`课表 ${tables.length + 1}`);
+  const onDelete = (id: string) => {
+    if (tables.length <= 1) {
+      Alert.alert("无法删除", "至少保留一张课表。");
+      return;
+    }
+    Alert.alert("删除课表", "删除后数据不可恢复，确定继续？", [
       { text: "取消", style: "cancel" },
-      { text: "退出", style: "destructive", onPress: async () => { await signOut(); router.replace("/login"); } },
+      { text: "删除", style: "destructive", onPress: () => deleteTable(id) },
     ]);
   };
 
-  const Row = ({ icon, label, value, onPress, last }: { icon: keyof typeof Ionicons.glyphMap; label: string; value?: string; onPress?: () => void; last?: boolean }) => (
-    <Pressable style={[styles.row, !last && styles.divider]} onPress={onPress}>
-      <Ionicons name={icon} size={17} color={colors.sub} />
+  const stepper = (label: string, value: number, min: number, max: number, step: number, onChange: (v: number) => void, format?: (v: number) => string) => (
+    <View style={styles.row}>
       <Text style={styles.rowLabel}>{label}</Text>
-      {value ? <Text style={styles.rowValue}>{value}</Text> : null}
-      <Ionicons name="chevron-forward" size={14} color={colors.faint} />
-    </Pressable>
+      <View style={styles.stepBox}>
+        <Pressable style={styles.stepBtn} onPress={() => onChange(Math.max(min, +(value - step).toFixed(2)))}><Text style={styles.stepText}>−</Text></Pressable>
+        <Text style={styles.stepValue}>{format ? format(value) : value}</Text>
+        <Pressable style={styles.stepBtn} onPress={() => onChange(Math.min(max, +(value + step).toFixed(2)))}><Text style={styles.stepText}>＋</Text></Pressable>
+      </View>
+    </View>
   );
 
-  const modes: { key: ThemeMode; label: string }[] = [
-    { key: "system", label: "跟随系统" },
-    { key: "light", label: "浅色" },
-    { key: "dark", label: "深色" },
-  ];
-
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ paddingTop: insets.top + 10, paddingBottom: 32 }} showsVerticalScrollIndicator={false}>
+    <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ paddingTop: insets.top + 10, paddingBottom: 36 }} showsVerticalScrollIndicator={false}>
       <ScreenStatusBar style={scheme === "dark" ? "light" : "dark"} />
       <Text style={styles.title}>我的</Text>
 
       <View style={[styles.card, { marginTop: 14 }]}>
         <View style={styles.profile}>
-          <View style={styles.avatar}><Ionicons name="person" size={22} color="#FFFFFF" /></View>
+          <View style={styles.avatar}><Ionicons name="calendar" size={22} color="#FFFFFF" /></View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.name}>{setup.studentId || studentId || "未设置学号"}</Text>
-            <Text style={styles.role}>{status === "demo" ? "演示账号 · 示例数据" : status === "authed" ? "已连接教务系统" : "未登录教务"}</Text>
+            <Text style={styles.name}>{activeTable.name}</Text>
+            <Text style={styles.role}>{tables.length} 张课表 · {courses.length} 门课程 · 完全离线</Text>
           </View>
-          <Text style={[styles.statusTag, status === "demo" && { color: colors.warnText, borderColor: colors.warnBorder }, status === "guest" && { color: colors.faint, borderColor: colors.line }]}>
-            {status === "demo" ? "DEMO" : status === "authed" ? "ONLINE" : "OFFLINE"}
-          </Text>
+          <Text style={styles.statusTag}>{source === "demo" ? "DEMO" : "LOCAL"}</Text>
         </View>
       </View>
 
-      <Text style={styles.section}>教务初始化</Text>
+      <Text style={styles.section}>课表管理</Text>
       <View style={styles.card}>
-        <View style={[styles.row, styles.divider]}>
-          <Ionicons name="person-outline" size={17} color={colors.sub} />
-          <Text style={styles.rowLabel}>个人课表 ID</Text>
-          <Text style={styles.rowValue}>{setup.personalId || "未设置"}</Text>
-        </View>
-        <View style={[styles.row, styles.divider]}>
-          <Ionicons name="people-outline" size={17} color={colors.sub} />
-          <Text style={styles.rowLabel}>班级课表 ID</Text>
-          <Text style={styles.rowValue}>{setup.classId || "未设置"}</Text>
-        </View>
-        <View style={[styles.row, styles.divider]}>
-          <Ionicons name="calendar-outline" size={17} color={colors.sub} />
-          <Text style={styles.rowLabel}>学年 / 学期</Text>
-          <Text style={styles.rowValue}>{setup.yearId} / {setup.termId}</Text>
-        </View>
-        <View style={{ flexDirection: "row", gap: 10, margin: 14 }}>
-          <Pressable style={[styles.saveBtn, { flex: 1, margin: 0 }]} onPress={() => router.push("/setup")}>
-            <Text style={styles.saveText}>初始化设置</Text>
+        {tables.map((t) => (
+          <Pressable key={t.id} style={[styles.row, styles.divider]} onPress={() => switchTable(t.id)}>
+            <Ionicons name={activeId === t.id ? "radio-button-on" : "radio-button-off"} size={17} color={activeId === t.id ? colors.brand : colors.faint} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rowLabel}>{t.name}</Text>
+              <Text style={styles.rowSub}>{t.courses.length} 门 · {t.totalWeeks} 周</Text>
+            </View>
+            <Pressable onPress={() => onDelete(t.id)} hitSlop={8}><Ionicons name="trash-outline" size={16} color={colors.faint} /></Pressable>
           </Pressable>
-          <Pressable style={styles.testBtn} onPress={() => router.push("/school-login")}>
-            <Text style={styles.testText}>登录抓取</Text>
-          </Pressable>
-        </View>
-        <Text style={styles.tip}>参数由学校教务系统提供，应用自动拼接课表地址，无需填写任何接口地址。教务系统仅限校园网 / VPN 访问。</Text>
-      </View>
-
-      <Text style={styles.section}>提醒与作息</Text>
-      <View style={styles.card}>
-        <View style={[styles.row, styles.divider]}>
-          <Ionicons name="notifications-outline" size={17} color={colors.sub} />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.rowLabel}>上课提醒</Text>
-            <Text style={styles.rowSub}>课前 10 分钟弹出通知</Text>
-          </View>
-          <Switch value={notify} onValueChange={onToggleNotify} disabled={busy} trackColor={{ true: colors.brand, false: colors.line }} thumbColor={notify ? "#FFFFFF" : colors.faint} />
-        </View>
-        <View style={styles.row}>
-          <Ionicons name="sunny-outline" size={17} color={colors.sub} />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.rowLabel}>当前作息</Text>
-            <Text style={styles.rowSub}>10 月 7 日自动切换夏 / 秋作息</Text>
-          </View>
-          <Text style={styles.tag}>{seasonText}</Text>
-        </View>
+        ))}
+        <Pressable style={styles.addBtn} onPress={onAdd}>
+          <Ionicons name="add" size={16} color={colors.brand} />
+          <Text style={styles.addText}>新建课表</Text>
+        </Pressable>
       </View>
 
       <Text style={styles.section}>外观</Text>
       <View style={styles.card}>
-        <View style={[styles.row, { paddingVertical: 14 }]}>
-          <Ionicons name="moon-outline" size={17} color={colors.sub} />
+        <Text style={styles.subLabel}>配色</Text>
+        <View style={styles.themeGrid}>
+          {THEME_PRESETS.map((p) => (
+            <Pressable key={p.id} style={[styles.themeItem, activeTable.themeId === p.id && { borderColor: colors.brand }]} onPress={() => updateTable({ themeId: p.id })}>
+              <View style={[styles.themeSwatch, { backgroundColor: p.brand }]}>
+                <View style={[styles.themeDot, { backgroundColor: p.tints[0].bar }]} />
+                <View style={[styles.themeDot, { backgroundColor: p.tints[1].bar }]} />
+              </View>
+              <Text style={styles.themeName}>{p.name}</Text>
+            </Pressable>
+          ))}
+        </View>
+        {stepper("格子高度", ui.rowHeight, 72, 132, 8, (v) => updateTable({ ui: { ...ui, rowHeight: v } }))}
+        {stepper("圆角", ui.radius, 0, 10, 1, (v) => updateTable({ ui: { ...ui, radius: v } }))}
+        {stepper("透明度", ui.opacity, 0.5, 1, 0.05, (v) => updateTable({ ui: { ...ui, opacity: v } }), (v) => `${Math.round(v * 100)}%`)}
+        <View style={[styles.row, { borderTopWidth: 1, borderTopColor: colors.line }]}>
+          <Text style={styles.rowLabel}>分隔线</Text>
+          <Switch value={ui.dividers} onValueChange={(v) => updateTable({ ui: { ...ui, dividers: v } })} trackColor={{ true: colors.brand, false: colors.line }} thumbColor={ui.dividers ? "#FFFFFF" : colors.faint} />
+        </View>
+        <View style={[styles.row, { borderTopWidth: 1, borderTopColor: colors.line }]}>
           <Text style={styles.rowLabel}>深色模式</Text>
           <View style={styles.segment}>
-            {modes.map((m) => (
+            {([{ key: "system", label: "系统" }, { key: "light", label: "浅色" }, { key: "dark", label: "深色" }] as { key: ThemeMode; label: string }[]).map((m) => (
               <Pressable key={m.key} onPress={() => setMode(m.key)} style={[styles.segmentItem, mode === m.key && styles.segmentItemActive]}>
                 <Text style={[styles.segmentText, mode === m.key && { color: colors.brand, fontWeight: "600" }]}>{m.label}</Text>
               </Pressable>
@@ -160,25 +157,55 @@ export default function SettingsScreen() {
         </View>
       </View>
 
-      <Text style={styles.section}>通用</Text>
+      <Text style={styles.section}>上课提醒</Text>
       <View style={styles.card}>
-        <Row
-          icon="cloud-download-outline"
-          label="检查更新"
-          value={updateChecking ? "检查中…" : updateResult?.status === "available" ? `新版本 v${updateResult.latest}` : updateResult?.status === "latest" ? "已是最新" : updateResult?.notFound ? "暂无发布" : "未检查"}
-          onPress={() => router.push("/update")}
-        />
-        <Row icon="layers-outline" label="静态课表导入" value={source === "static" ? "已导入" : "未导入"} onPress={() => router.push("/import")} />
-        <Row icon="document-text-outline" label="用户协议与隐私政策" onPress={() => router.push("/agreement?view=1")} />
-        <Row icon="heart-outline" label="赞助支持" onPress={() => router.push("/sponsor")} />
-        <Row icon="download-outline" label="导出课表" value="即将开放" />
-        <Row icon="information-circle-outline" label="版本" value="1.0.0 (MVP)" last />
+        <View style={styles.row}>
+          <Ionicons name="notifications-outline" size={17} color={colors.sub} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.rowLabel}>开启提醒</Text>
+            <Text style={styles.rowSub}>本地通知，无需后台常驻</Text>
+          </View>
+          <Switch value={notify} onValueChange={onToggleNotify} disabled={busy} trackColor={{ true: colors.brand, false: colors.line }} thumbColor={notify ? "#FFFFFF" : colors.faint} />
+        </View>
+        <View style={[styles.row, { borderTopWidth: 1, borderTopColor: colors.line }]}>
+          <Text style={styles.rowLabel}>提前量</Text>
+          <View style={styles.segment}>
+            {[5, 10, 15, 30].map((m) => (
+              <Pressable key={m} onPress={() => onLead(m)} style={[styles.segmentItem, lead === m && styles.segmentItemActive]}>
+                <Text style={[styles.segmentText, lead === m && { color: colors.brand, fontWeight: "600" }]}>{m} 分</Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
       </View>
 
-      <Pressable style={[styles.card, styles.logout]} onPress={onSignOut}>
-        <Text style={styles.logoutText}>退出登录</Text>
-      </Pressable>
-      <Text style={styles.footer}>课表系统 · Campus Schedule</Text>
+      <Text style={styles.section}>通用</Text>
+      <View style={styles.card}>
+        <Pressable style={[styles.row, styles.divider]} onPress={() => router.push("/import")}>
+          <Ionicons name="cloud-download-outline" size={17} color={colors.sub} />
+          <Text style={styles.rowLabel}>导入课表</Text>
+          <Text style={styles.rowValue}>网页 / 源码 / CSV</Text>
+          <Ionicons name="chevron-forward" size={14} color={colors.faint} />
+        </Pressable>
+        <Pressable style={[styles.row, styles.divider]} onPress={() => router.push("/update")}>
+          <Ionicons name="refresh-outline" size={17} color={colors.sub} />
+          <Text style={styles.rowLabel}>检查更新</Text>
+          <Text style={styles.rowValue}>{updateChecking ? "检查中…" : updateResult?.status === "available" ? `v${updateResult.latest}` : updateResult?.status === "latest" ? "已是最新" : "未检查"}</Text>
+          <Ionicons name="chevron-forward" size={14} color={colors.faint} />
+        </Pressable>
+        <Pressable style={[styles.row, styles.divider]} onPress={() => router.push("/agreement?view=1")}>
+          <Ionicons name="document-text-outline" size={17} color={colors.sub} />
+          <Text style={styles.rowLabel}>用户协议与隐私政策</Text>
+          <Ionicons name="chevron-forward" size={14} color={colors.faint} />
+        </Pressable>
+        <Pressable style={styles.row} onPress={() => router.push("/sponsor")}>
+          <Ionicons name="heart-outline" size={17} color={colors.sub} />
+          <Text style={styles.rowLabel}>赞助支持</Text>
+          <Ionicons name="chevron-forward" size={14} color={colors.faint} />
+        </Pressable>
+      </View>
+
+      <Text style={styles.footer}>课表系统 · 完全离线 · 数据仅保存在本机</Text>
     </ScrollView>
   );
 }
@@ -193,22 +220,26 @@ const makeStyles = (colors: Colors) =>
     role: { fontSize: 11.5, color: colors.sub, marginTop: 4 },
     statusTag: { fontSize: 10, fontWeight: "600", color: colors.success, borderWidth: 1, borderColor: colors.success, borderRadius: 3, paddingHorizontal: 6, paddingVertical: 2 },
     section: { fontSize: 12, color: colors.faint, marginTop: 22, marginBottom: 2, marginLeft: 18 },
-    divider: { borderBottomWidth: 1, borderBottomColor: colors.line },
-    tip: { fontSize: 11, color: colors.faint, lineHeight: 16, paddingHorizontal: 14, paddingBottom: 14 },
-    saveBtn: { height: 40, borderRadius: radius.sm, backgroundColor: colors.brand, alignItems: "center", justifyContent: "center" },
-    saveText: { color: "#FFFFFF", fontSize: 13.5, fontWeight: "600" },
-    testBtn: { flex: 1, height: 40, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.fieldBorder, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface },
-    testText: { color: colors.ink, fontSize: 13, fontWeight: "500" },
     row: { flexDirection: "row", alignItems: "center", paddingHorizontal: 14, paddingVertical: 13, gap: 10 },
+    divider: { borderBottomWidth: 1, borderBottomColor: colors.line },
     rowLabel: { flex: 1, fontSize: 13.5, color: colors.ink },
     rowSub: { fontSize: 10.5, color: colors.faint, marginTop: 3 },
     rowValue: { fontSize: 12, color: colors.faint },
-    tag: { fontSize: 11, color: colors.brand, borderWidth: 1, borderColor: colors.infoBorder, backgroundColor: colors.infoBg, borderRadius: 3, paddingHorizontal: 6, paddingVertical: 2 },
+    addBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingVertical: 13 },
+    addText: { fontSize: 13, color: colors.brand, fontWeight: "500" },
+    subLabel: { fontSize: 12, color: colors.sub, paddingHorizontal: 14, paddingTop: 12 },
+    themeGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, padding: 14 },
+    themeItem: { width: "22%", alignItems: "center", paddingVertical: 8, borderRadius: 8, borderWidth: 2, borderColor: "transparent" },
+    themeSwatch: { width: 34, height: 34, borderRadius: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 3 },
+    themeDot: { width: 8, height: 8, borderRadius: 4 },
+    themeName: { fontSize: 10.5, color: colors.sub, marginTop: 5 },
+    stepBox: { flexDirection: "row", alignItems: "center", gap: 8 },
+    stepBtn: { width: 28, height: 26, borderRadius: 4, borderWidth: 1, borderColor: colors.fieldBorder, alignItems: "center", justifyContent: "center" },
+    stepText: { fontSize: 14, color: colors.ink },
+    stepValue: { fontSize: 12.5, color: colors.ink, minWidth: 42, textAlign: "center" },
     segment: { flexDirection: "row", backgroundColor: colors.chipBg, borderRadius: radius.sm, padding: 2, gap: 2 },
     segmentItem: { paddingHorizontal: 8, paddingVertical: 5, borderRadius: 3 },
     segmentItemActive: { backgroundColor: colors.surface },
     segmentText: { fontSize: 11, color: colors.sub },
-    logout: { marginTop: 22, height: 46, alignItems: "center", justifyContent: "center" },
-    logoutText: { fontSize: 14, color: colors.danger },
-    footer: { textAlign: "center", fontSize: 11, color: colors.faint, marginTop: 20 },
+    footer: { textAlign: "center", fontSize: 11, color: colors.faint, marginTop: 22 },
   });
