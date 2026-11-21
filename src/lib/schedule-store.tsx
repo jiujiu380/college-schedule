@@ -47,6 +47,7 @@ type ScheduleValue = {
   addCourse: (course: Course) => void;
   updateCourse: (course: Course) => void;
   deleteCourse: (id: string) => void;
+  restore: (tables: Timetable[], activeId: string) => void;
   applyStatic: (courses: Course[], name: string) => Promise<void>;
   applyApi: (courses: Course[], periods?: Period[]) => Promise<void>;
   clearStatic: () => Promise<void>;
@@ -151,6 +152,15 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
     setTables((prev) => prev.map((t) => (t.id === activeId ? { ...t, courses: t.courses.filter((c) => c.id !== id), updatedAt: new Date().toISOString() } : t)));
   }, [activeId]);
 
+  const restore = useCallback((nextTables: Timetable[], nextActiveId: string) => {
+    if (!nextTables.length) return;
+    const id = nextTables.some((t) => t.id === nextActiveId) ? nextActiveId : nextTables[0].id;
+    setTables(nextTables);
+    setActiveId(id);
+    const t = nextTables.find((x) => x.id === id) ?? nextTables[0];
+    setWeekRaw(Math.min(Math.max(weekOfDate(t.startDate), 1), t.totalWeeks));
+  }, []);
+
   const applyStatic = useCallback(async (courses: Course[], name: string) => importCourses(courses, undefined, name, "static"), [importCourses]);
   const applyApi = useCallback(async (courses: Course[], periods?: Period[]) => importCourses(courses, periods, activeTable.name, "api"), [importCourses, activeTable.name]);
   const clearStatic = useCallback(async () => {
@@ -192,11 +202,12 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
       addCourse,
       updateCourse,
       deleteCourse,
+      restore,
       applyStatic,
       applyApi,
       clearStatic,
     };
-  }, [activeTable, tables, activeId, week, season, setWeek, switchTable, addTable, updateTable, deleteTable, importCourses, addCourse, updateCourse, deleteCourse, applyStatic, applyApi, clearStatic]);
+  }, [activeTable, tables, activeId, week, season, setWeek, switchTable, addTable, updateTable, deleteTable, importCourses, addCourse, updateCourse, deleteCourse, restore, applyStatic, applyApi, clearStatic]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

@@ -200,6 +200,12 @@ export default function SettingsScreen() {
           <Text style={styles.rowValue}>网页 / 源码 / CSV</Text>
           <Ionicons name="chevron-forward" size={14} color={colors.faint} />
         </Pressable>
+        <Pressable style={[styles.row, styles.divider]} onPress={() => router.push("/backup")}>
+          <Ionicons name="save-outline" size={17} color={colors.sub} />
+          <Text style={styles.rowLabel}>备份与恢复</Text>
+          <Text style={styles.rowValue}>{tables.length} 张课表</Text>
+          <Ionicons name="chevron-forward" size={14} color={colors.faint} />
+        </Pressable>
         <Pressable style={[styles.row, styles.divider]} onPress={() => router.push("/update")}>
           <Ionicons name="refresh-outline" size={17} color={colors.sub} />
           <Text style={styles.rowLabel}>检查更新</Text>

@@ -13,10 +13,11 @@ import { useSchedule } from "../lib/schedule-store";
 import { parseStaticJson } from "../lib/static-timetable";
 import { useTheme } from "../lib/theme-context";
 import { parseTimetable, parseWeeks } from "../lib/timetable-html";
+import { parseCsvText as parseCsvRows, parseWorkbookBase64, pickImportFile } from "../lib/file-import";
 import { Period, WEEKDAYS } from "../lib/time";
 import { Colors, radius } from "../theme";
 
-type Tab = "web" | "source" | "csv" | "json";
+type Tab = "web" | "source" | "csv" | "json" | "file";
 type Pending = { courses: Course[]; periods: Period[]; name: string };
 
 const DESKTOP_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0 Safari/537.36";
@@ -112,8 +113,9 @@ export default function ImportScreen() {
   };
 
   const tabs: { key: Tab; label: string }[] = [
-    { key: "web", label: "网页导入" },
+    { key: "web", label: "网页" },
     { key: "source", label: "源码" },
+    { key: "file", label: "文件" },
     { key: "csv", label: "CSV" },
     { key: "json", label: "JSON" },
   ];
@@ -194,6 +196,41 @@ export default function ImportScreen() {
               </Pressable>
               <PressableStyleBtn label="解析" onPress={parseSource} colors={colors} />
             </View>
+          </>
+        ) : null}
+
+        {tab === "file" ? (
+          <>
+            <Text style={styles.hint}>支持 Excel(.xlsx/.xls)、CSV、JSON。表头可写：课程名、星期、开始节、结束节、周次、教师、地点；没有表头则按此顺序读取。</Text>
+            <Pressable
+              style={[styles.ghostBtn, { height: 46, borderColor: colors.brand, backgroundColor: colors.brandSoft }]}
+              onPress={async () => {
+                reset();
+                try {
+                  const picked = await pickImportFile();
+                  if (!picked) return;
+                  let list: Course[] = [];
+                  if (picked.kind === "xlsx" && picked.base64) list = parseWorkbookBase64(picked.base64);
+                  else if (picked.kind === "csv" && picked.text) list = parseCsvRows(picked.text);
+                  else if (picked.kind === "json" && picked.text) {
+                    const res = parseStaticJson(picked.text);
+                    if (!res.ok) { setError(res.error); return; }
+                    list = res.courses;
+                  }
+                  if (!list.length) {
+                    setError("没有从文件里读到课程，请检查表头或列顺序。");
+                    return;
+                  }
+                  setPending({ courses: list, periods: [], name: picked.name.replace(/\.[^.]+$/, "") });
+                } catch (e) {
+                  setError("读取文件失败：" + String(e instanceof Error ? e.message : e));
+                }
+              }}
+            >
+              <Ionicons name="folder-open-outline" size={16} color={colors.brand} />
+              <Text style={[styles.ghostText, { color: colors.brand, marginLeft: 6 }]}>选择 Excel / CSV / JSON 文件</Text>
+            </Pressable>
+            <Text style={[styles.hint, { marginTop: 12 }]}>示例：第一行 课程名 | 星期 | 开始节 | 结束节 | 周次 | 教师 | 地点</Text>
           </>
         ) : null}
 
@@ -309,37 +346,7 @@ function conflictCount(courses: Course[]): number {
 }
 
 function parseCsvText(text: string): { courses: Course[]; periods: Period[] } {
-  const courses: Course[] = [];
-  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-  let id = 0;
-  for (const line of lines) {
-    const cols = line.split(/[,\t]/).map((s) => s.trim());
-    if (cols.length < 5) continue;
-    if (/课程名|名称/.test(cols[0])) continue;
-    const [name, dayRaw, startRaw, endRaw, weeksRaw, teacher, location] = cols;
-    const weekday = parseWeekday(dayRaw);
-    const start = Number(startRaw);
-    const end = Number(endRaw) || start;
-    if (!name || !weekday || !start) continue;
-    courses.push({
-      id: `csv-${++id}`,
-      name,
-      teacher: teacher || undefined,
-      location: location || undefined,
-      weekday,
-      startPeriod: start,
-      endPeriod: end,
-      weeks: weeksRaw ? parseWeeks(weeksRaw) : Array.from({ length: 20 }, (_, i) => i + 1),
-    });
-  }
-  return { courses, periods: [] };
-}
-
-function parseWeekday(v: string): number {
-  const map: Record<string, number> = { 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 日: 7, 天: 7 };
-  const s = v.replace(/周|星期/g, "").trim();
-  if (/^[1-7]$/.test(s)) return Number(s);
-  return map[s] ?? 0;
+  return { courses: parseCsvRows(text), periods: [] };
 }
 
 const stylesBtn = StyleSheet.create({

@@ -52,7 +52,8 @@
           "color": "#2F5BFF",
           "defaultChannel": "class-reminders"
         }
-      ]
+      ],
+      "expo-sharing"
     ]
   }
 }
