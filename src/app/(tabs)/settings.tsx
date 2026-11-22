@@ -101,7 +101,7 @@ export default function SettingsScreen() {
   );
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ paddingTop: insets.top + 10, paddingBottom: 36 }} showsVerticalScrollIndicator={false}>
+    <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ paddingTop: insets.top + 10, paddingBottom: 140 }} showsVerticalScrollIndicator={false}>
       <ScreenStatusBar style={scheme === "dark" ? "light" : "dark"} />
       <Text style={styles.title}>我的</Text>
 
@@ -226,6 +226,12 @@ export default function SettingsScreen() {
           <Text style={styles.rowValue}>{updateChecking ? "检查中…" : updateResult?.status === "available" ? `v${updateResult.latest}` : updateResult?.status === "latest" ? "已是最新" : "未检查"}</Text>
           <Ionicons name="chevron-forward" size={14} color={colors.faint} />
         </Pressable>
+        <Pressable style={[styles.row, styles.divider]} onPress={() => router.push("/background")}>
+          <Ionicons name="phone-portrait-outline" size={17} color={colors.sub} />
+          <Text style={styles.rowLabel}>后台保活 / 自启动</Text>
+          <Text style={styles.rowValue}>通知不被清理</Text>
+          <Ionicons name="chevron-forward" size={14} color={colors.faint} />
+        </Pressable>
         <Pressable style={[styles.row, styles.divider]} onPress={() => router.push("/agreement?view=1")}>
           <Ionicons name="document-text-outline" size={17} color={colors.sub} />
           <Text style={styles.rowLabel}>用户协议与隐私政策</Text>
@@ -237,12 +243,6 @@ export default function SettingsScreen() {
           <Ionicons name="chevron-forward" size={14} color={colors.faint} />
         </Pressable>
       </View>
-
-      <Pressable style={[styles.row, { marginTop: 12, backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.line, paddingHorizontal: 14 }]} onPress={() => router.push("/background")}>
-        <Ionicons name="phone-portrait-outline" size={17} color={colors.sub} />
-        <Text style={styles.rowLabel}>后台保活 / 自启动设置</Text>
-        <Ionicons name="chevron-forward" size={14} color={colors.faint} />
-      </Pressable>
 
       <Text style={styles.footer}>知酷课程表 · 完全离线 · 数据仅保存在本机</Text>
     </ScrollView>
@@ -283,5 +283,5 @@ const makeStyles = (colors: Colors) =>
     segmentItem: { paddingHorizontal: 8, paddingVertical: 5, borderRadius: 3 },
     segmentItemActive: { backgroundColor: colors.surface },
     segmentText: { fontSize: 11, color: colors.sub },
-    footer: { textAlign: "center", fontSize: 11, color: colors.faint, marginTop: 22 },
+    footer: { textAlign: "center", fontSize: 11, color: colors.faint, marginTop: 26 },
   });
