@@ -2,42 +2,42 @@ export type Scheme = "light" | "dark";
 export type ThemeMode = "system" | "light" | "dark";
 
 export const lightColors = {
-  bg: "#F2F3F5",
+  bg: "#F5F6FA",
   surface: "#FFFFFF",
-  ink: "#111827",
-  sub: "#6B7280",
-  faint: "#9CA3AF",
-  line: "#E5E7EB",
-  lineSoft: "#F0F1F3",
-  brand: "#2F5BFF",
-  brandSoft: "#EDF2FF",
+  ink: "#0B1220",
+  sub: "#5B6474",
+  faint: "#8B93A3",
+  line: "#E9EBF1",
+  lineSoft: "#F1F3F7",
+  brand: "#2563EB",
+  brandSoft: "#EEF3FF",
   danger: "#DC2626",
   success: "#059669",
   fieldBg: "#FFFFFF",
-  fieldBorder: "#DDE0E5",
-  chipBg: "#F3F4F6",
+  fieldBorder: "#DFE3EA",
+  chipBg: "#F3F5F9",
   chipBorder: "#DDE0E5",
   chipActiveBg: "#E9ECF1",
   warnBg: "#FFF7E6",
   warnBorder: "#F3E3C3",
   warnText: "#B45309",
-  infoBg: "#F3F6FF",
-  infoBorder: "#D6E0FF",
-  tabInactive: "#9CA3AF",
+  infoBg: "#F1F5FF",
+  infoBorder: "#D8E2FF",
+  tabInactive: "#98A1B0",
   overlay: "rgba(17,24,39,0.04)",
 };
 
 export type Colors = typeof lightColors;
 
 export const darkColors: Colors = {
-  bg: "#0B0D12",
-  surface: "#151922",
-  ink: "#F4F6FA",
-  sub: "#C2C9D6",
-  faint: "#98A2B3",
-  line: "#2C3240",
+  bg: "#0A0C11",
+  surface: "#141821",
+  ink: "#F2F5FA",
+  sub: "#B4BCCC",
+  faint: "#8791A3",
+  line: "#242A36",
   lineSoft: "#1D2330",
-  brand: "#6B8DFF",
+  brand: "#5B8CFF",
   brandSoft: "#1B2440",
   danger: "#FF7070",
   success: "#3DDC97",
@@ -59,7 +59,7 @@ export function colorsOf(scheme: Scheme): Colors {
   return scheme === "dark" ? darkColors : lightColors;
 }
 
-export const radius = { sm: 4, md: 6, lg: 8 };
+export const radius = { sm: 8, md: 12, lg: 16 };
 
 type Tint = { bg: string; bar: string; fg: string };
 
