@@ -4,6 +4,7 @@ import * as Clipboard from "expo-clipboard";
 import Constants from "expo-constants";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Notifications from "expo-notifications";
+import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -23,6 +24,7 @@ import { Colors, radius } from "../theme";
 type Status = { text: string; tone: "ok" | "err" | "info" } | null;
 
 export default function DeveloperScreen() {
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors, scheme } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -207,6 +209,12 @@ export default function DeveloperScreen() {
           <Text style={styles.infoValue} numberOfLines={2}>{channels}</Text>
         </View>
       </View>
+
+      <Pressable style={[styles.row, styles.divider, { backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, marginBottom: 4, paddingHorizontal: 14 }]} onPress={() => router.push("/background")}>
+        <Ionicons name="rocket-outline" size={18} color={colors.brand} />
+        <Text style={styles.label}>后台保活 / 自启动设置</Text>
+        <Ionicons name="chevron-forward" size={14} color={colors.faint} />
+      </Pressable>
 
       <Text style={styles.section}>数据与同步</Text>
       <View style={styles.card}>

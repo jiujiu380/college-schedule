@@ -122,6 +122,7 @@ function ThemedRoot() {
                 <Stack.Screen name="intro" options={{ headerShown: false }} />
                 <Stack.Screen name="legal" options={{ ...headerOptions, title: "协议" }} />
                 <Stack.Screen name="developer" options={{ ...headerOptions, title: "开发者选项" }} />
+                <Stack.Screen name="background" options={{ ...headerOptions, title: "后台保活" }} />
                 <Stack.Screen name="account" options={{ ...headerOptions, title: "账号" }} />
                 <Stack.Screen name="contact" options={{ ...headerOptions, title: "联系作者" }} />
                 <Stack.Screen name="announcements" options={{ ...headerOptions, title: "公告" }} />

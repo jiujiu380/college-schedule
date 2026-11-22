@@ -17,6 +17,7 @@ import { StaticMeta } from "./static-timetable";
 import { ThemePreset, presetById } from "./theme-presets";
 import { writeWidgetData } from "./widget-data";
 import { uploadCloud } from "./cloud-sync";
+import { getLeadMinutes, isNotifyEnabled, scheduleClassReminders } from "./notifications";
 
 export type ScheduleSource = "demo" | "static" | "api";
 
@@ -81,6 +82,22 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (ready) void saveTables({ tables, activeId });
   }, [tables, activeId, ready]);
+
+  const reminderInit = useRef(false);
+  useEffect(() => {
+    if (!ready || reminderInit.current) return;
+    reminderInit.current = true;
+    (async () => {
+      try {
+        if (!(await isNotifyEnabled())) return;
+        const lead = await getLeadMinutes();
+        const table = tables.find((x) => x.id === activeId) ?? tables[0];
+        if (table) await scheduleClassReminders(table.courses, table.periods, { leadMinutes: lead });
+      } catch {
+        // 排期失败不影响启动
+      }
+    })();
+  }, [ready, tables, activeId]);
 
   const cloudInit = useRef(false);
   useEffect(() => {

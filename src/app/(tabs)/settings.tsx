@@ -238,6 +238,12 @@ export default function SettingsScreen() {
         </Pressable>
       </View>
 
+      <Pressable style={[styles.row, { marginTop: 12, backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.line, paddingHorizontal: 14 }]} onPress={() => router.push("/background")}>
+        <Ionicons name="phone-portrait-outline" size={17} color={colors.sub} />
+        <Text style={styles.rowLabel}>后台保活 / 自启动设置</Text>
+        <Ionicons name="chevron-forward" size={14} color={colors.faint} />
+      </Pressable>
+
       <Text style={styles.footer}>知酷课程表 · 完全离线 · 数据仅保存在本机</Text>
     </ScrollView>
   );

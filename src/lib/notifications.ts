@@ -83,7 +83,7 @@ export async function scheduleClassReminders(
   periods: Period[],
   options: ReminderOptions = {},
 ): Promise<number> {
-  await Notifications.cancelAllScheduledNotificationsAsync();
+  await cancelCourseReminders();
   const days = options.days ?? 14;
   const lead = options.leadMinutes ?? 10;
   const now = new Date();
@@ -108,7 +108,7 @@ export async function scheduleClassReminders(
           title: `即将上课 · ${c.name}`,
           body: `${p.start} ${c.location ?? ""} · ${c.teacher ?? ""}`,
           sound: true,
-          data: { courseId: c.id },
+          data: { kind: "class", courseId: c.id },
         },
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.DATE,
@@ -120,6 +120,15 @@ export async function scheduleClassReminders(
     }
   }
   return count;
+}
+
+export async function cancelCourseReminders(): Promise<void> {
+  const list = await Notifications.getAllScheduledNotificationsAsync();
+  await Promise.all(
+    list
+      .filter((item) => (item.content.data as any)?.kind === "class")
+      .map((item) => Notifications.cancelScheduledNotificationAsync(item.identifier).catch(() => undefined)),
+  );
 }
 
 export async function cancelAllReminders(): Promise<void> {
