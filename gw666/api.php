@@ -31,7 +31,11 @@ try {
       json_out(['items' => $rows]);
 
     case 'update':
-      $row = db()->query("SELECT version, url, notes, force, created_at FROM app_updates WHERE channel = 'site' ORDER BY id DESC LIMIT 1")->fetch();
+      $row = db()->query("SELECT version, url, notes, is_force, created_at FROM app_updates WHERE update_channel = 'site' ORDER BY id DESC LIMIT 1")->fetch();
+      if ($row) {
+        $row['force'] = (int)$row['is_force'];
+        unset($row['is_force']);
+      }
       json_out(['update' => $row ?: null]);
 
     case 'tickets':

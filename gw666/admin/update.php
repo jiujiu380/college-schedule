@@ -9,7 +9,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $force = isset($_POST['force']) ? 1 : 0;
   $channel = ($_POST['channel'] ?? 'site') === 'github' ? 'github' : 'site';
   if ($version !== '' && $url !== '') {
-    $st = db()->prepare('INSERT INTO app_updates (version, url, notes, force, channel, created_at) VALUES (?, ?, ?, ?, ?, NOW())');
+    $st = db()->prepare('INSERT INTO app_updates (version, url, notes, is_force, update_channel, created_at) VALUES (?, ?, ?, ?, ?, NOW())');
     $st->execute([$version, $url, $notes, $force, $channel]);
   }
   header('Location: update.php');
@@ -41,7 +41,7 @@ require __DIR__ . '/layout_top.php';
   <h2>版本记录</h2>
   <table><tr><th>版本</th><th>渠道</th><th>强制</th><th>时间</th><th></th></tr>
   <?php foreach ($rows as $r): ?>
-    <tr><td><?= e($r['version']) ?></td><td><?= e($r['channel']) ?></td><td><?= $r['force'] ? '是' : '' ?></td><td><?= e($r['created_at']) ?></td>
+    <tr><td><?= e($r['version']) ?></td><td><?= e($r['update_channel']) ?></td><td><?= $r['is_force'] ? '是' : '' ?></td><td><?= e($r['created_at']) ?></td>
       <td><a href="?delete=<?= (int)$r['id'] ?>" onclick="return confirm('删除？')">删除</a></td></tr>
   <?php endforeach; ?>
   </table>

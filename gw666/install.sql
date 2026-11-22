@@ -16,8 +16,8 @@ CREATE TABLE IF NOT EXISTS app_updates (
   version VARCHAR(32) NOT NULL,
   url VARCHAR(500) NOT NULL,
   notes TEXT,
-  force TINYINT DEFAULT 0,
-  channel VARCHAR(16) DEFAULT 'site',
+  is_force TINYINT DEFAULT 0,
+  update_channel VARCHAR(16) DEFAULT 'site',
   created_at DATETIME NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
