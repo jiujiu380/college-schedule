@@ -58,6 +58,21 @@ export async function loginAccount(username: string, password: string, captcha?:
   return data.user as AccountUser;
 }
 
+export async function sendEmailCode(email: string, scene: "register" | "login" | "reset"): Promise<void> {
+  const data = await postJson("/api.php?action=send_email_code", { email, scene });
+  return data;
+}
+
+export async function loginWithEmail(email: string, code: string): Promise<AccountUser> {
+  const data = await postJson("/api.php?action=user_login_email", { email, email_code: code });
+  await saveSession(data.token, data.user);
+  return data.user as AccountUser;
+}
+
+export async function resetPasswordEmail(email: string, code: string, password: string): Promise<void> {
+  await postJson("/api.php?action=user_reset_password_email", { email, email_code: code, password });
+}
+
 export async function sendSmsCode(phone: string, scene: "register" | "login" | "reset"): Promise<void> {
   const base = await getSiteBase();
   const res = await fetch(base + "/api.php?action=send_sms", {
@@ -94,9 +109,10 @@ export async function registerAccount(input: {
   wechat?: string;
   phone?: string;
   smsCode?: string;
+  emailCode?: string;
   captcha?: CaptchaPayload;
 }): Promise<AccountUser> {
-  const data = await postJson("/api.php?action=user_register", { ...input, sms_code: input.smsCode });
+  const data = await postJson("/api.php?action=user_register", { ...input, email_code: input.emailCode, sms_code: input.smsCode });
   if (data?.token && data?.user) {
     await saveSession(data.token, data.user);
     return data.user as AccountUser;

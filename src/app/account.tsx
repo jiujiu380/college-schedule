@@ -7,7 +7,7 @@ import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Tex
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CaptchaModal } from "../components/CaptchaModal";
 import { ScreenStatusBar } from "../components/ScreenStatusBar";
-import { AccountUser, CaptchaPayload, getCachedAccount, loginAccount, loginWithPhone, logoutAccount, refreshAccount, registerAccount, sendSmsCode, updateProfile } from "../lib/account";
+import { AccountUser, CaptchaPayload, getCachedAccount, loginAccount, loginWithEmail, logoutAccount, refreshAccount, registerAccount, sendEmailCode, updateProfile } from "../lib/account";
 import { fetchSiteInfo, getSiteBase } from "../lib/site-api";
 import { applyCloudData, downloadCloud, uploadCloud } from "../lib/cloud-sync";
 import { useSchedule } from "../lib/schedule-store";
@@ -40,9 +40,8 @@ export default function AccountScreen() {
   const [avatarLocal, setAvatarLocal] = useState<string | undefined>();
   const [avatarUri, setAvatarUri] = useState<string | undefined>();
   const [saving, setSaving] = useState(false);
-  const [loginMode, setLoginMode] = useState<"password" | "phone">("password");
-  const [phone, setPhone] = useState("");
-  const [smsCode, setSmsCode] = useState("");
+  const [loginMode, setLoginMode] = useState<"password" | "email">("password");
+  const [emailCode, setEmailCode] = useState("");
   const [countdown, setCountdown] = useState(0);
   const [smsSending, setSmsSending] = useState(false);
   const { tables, activeId, restore } = useSchedule();
@@ -99,16 +98,16 @@ export default function AccountScreen() {
   };
 
   const sendCode = async (scene: "register" | "login" | "reset") => {
-    if (!/^1[3-9]\d{9}$/.test(phone)) {
-      setError("请输入正确的手机号");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setError("请输入正确的邮箱");
       return;
     }
     setSmsSending(true);
     setError("");
     try {
-      await sendSmsCode(phone, scene);
+      await sendEmailCode(email.trim(), scene);
       setCountdown(60);
-      Alert.alert("验证码已发送", "请查看短信，5 分钟内有效。");
+      Alert.alert("验证码已发送", "请查收邮件（含垃圾箱），10 分钟内有效。");
     } catch (e) {
       setError(String(e instanceof Error ? e.message : e));
     } finally {
@@ -116,15 +115,15 @@ export default function AccountScreen() {
     }
   };
 
-  const submitPhoneLogin = async () => {
-    if (!phone || !smsCode) {
-      setError("请填写手机号和验证码");
+  const submitEmailLogin = async () => {
+    if (!email.trim() || !emailCode.trim()) {
+      setError("请填写邮箱和验证码");
       return;
     }
     setBusy(true);
     setError("");
     try {
-      const u = await loginWithPhone(phone, smsCode);
+      const u = await loginWithEmail(email.trim(), emailCode.trim());
       setUser(u);
       if (gate) router.replace("/home");
     } catch (e) {
@@ -202,16 +201,12 @@ export default function AccountScreen() {
       setError("两次输入的密码不一致");
       return;
     }
-    if (!/^1[3-9]\d{9}$/.test(phone)) {
-      setError("请填写正确的手机号");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setError("请填写正确的邮箱");
       return;
     }
-    if (!smsCode.trim()) {
-      setError("请填写手机验证码");
-      return;
-    }
-    if (!email.trim() && !qq.trim() && !wechat.trim()) {
-      setError("请至少填写一种联系方式");
+    if (!emailCode.trim()) {
+      setError("请填写邮箱验证码");
       return;
     }
     if (!agree) {
@@ -226,8 +221,7 @@ export default function AccountScreen() {
           email: email.trim(),
           qq: qq.trim(),
           wechat: wechat.trim(),
-          phone: phone.trim(),
-          smsCode: smsCode.trim(),
+          emailCode: emailCode.trim(),
           captcha: cap,
         });
         setUser(registered);
@@ -365,29 +359,26 @@ export default function AccountScreen() {
                 <Pressable onPress={() => setLoginMode("password")} style={[styles.loginTab, loginMode === "password" && styles.loginTabActive]}>
                   <Text style={[styles.loginTabText, loginMode === "password" && { color: colors.brand, fontWeight: "600" }]}>密码登录</Text>
                 </Pressable>
-                <Pressable onPress={() => setLoginMode("phone")} style={[styles.loginTab, loginMode === "phone" && styles.loginTabActive]}>
-                  <Text style={[styles.loginTabText, loginMode === "phone" && { color: colors.brand, fontWeight: "600" }]}>手机号登录</Text>
+                <Pressable onPress={() => setLoginMode("email")} style={[styles.loginTab, loginMode === "email" && styles.loginTabActive]}>
+                  <Text style={[styles.loginTabText, loginMode === "email" && { color: colors.brand, fontWeight: "600" }]}>邮箱验证码登录</Text>
                 </Pressable>
               </View>
             ) : null}
 
-            {mode === "login" && loginMode === "phone" ? (
+            {mode === "login" && loginMode === "email" ? (
               <>
-                <Text style={styles.label}>手机号</Text>
-                <TextInput value={phone} onChangeText={setPhone} placeholder="11 位手机号" placeholderTextColor={colors.faint} style={styles.input} keyboardType="phone-pad" maxLength={11} />
-                <Text style={styles.label}>验证码</Text>
+                <Text style={styles.label}>邮箱</Text>
+                <TextInput value={email} onChangeText={setEmail} placeholder="注册时使用的邮箱" placeholderTextColor={colors.faint} style={styles.input} autoCapitalize="none" keyboardType="email-address" />
+                <Text style={styles.label}>邮箱验证码</Text>
                 <View style={styles.codeRow}>
-                  <TextInput value={smsCode} onChangeText={setSmsCode} placeholder="6 位验证码" placeholderTextColor={colors.faint} style={[styles.input, { flex: 1 }]} keyboardType="number-pad" maxLength={6} />
+                  <TextInput value={emailCode} onChangeText={setEmailCode} placeholder="6 位验证码" placeholderTextColor={colors.faint} style={[styles.input, { flex: 1 }]} keyboardType="number-pad" maxLength={6} />
                   <Pressable style={[styles.codeBtn, (countdown > 0 || smsSending) && { opacity: 0.5 }]} onPress={() => sendCode("login")} disabled={countdown > 0 || smsSending}>
                     <Text style={styles.codeBtnText}>{countdown > 0 ? countdown + "s" : smsSending ? "发送中" : "获取验证码"}</Text>
                   </Pressable>
                 </View>
                 {error ? <Text style={styles.error}>{error}</Text> : null}
-                <Pressable style={[styles.primary, busy && { opacity: 0.6 }]} onPress={submitPhoneLogin} disabled={busy}>
+                <Pressable style={[styles.primary, busy && { opacity: 0.6 }]} onPress={submitEmailLogin} disabled={busy}>
                   <Text style={styles.primaryText}>{busy ? "登录中…" : "登录"}</Text>
-                </Pressable>
-                <Pressable onPress={() => router.push("/reset-password")} style={styles.forgot}>
-                  <Text style={styles.forgotText}>忘记密码？用手机验证码重置</Text>
                 </Pressable>
               </>
             ) : (
@@ -405,19 +396,17 @@ export default function AccountScreen() {
                 <Text style={styles.label}>确认密码</Text>
                 <TextInput value={confirm} onChangeText={setConfirm} placeholder="再输入一次" placeholderTextColor={colors.faint} secureTextEntry style={styles.input} />
 
-                <Text style={styles.label}>手机号</Text>
-                <TextInput value={phone} onChangeText={setPhone} placeholder="11 位手机号，注册后可用于登录" placeholderTextColor={colors.faint} style={styles.input} keyboardType="phone-pad" maxLength={11} />
-                <Text style={styles.label}>短信验证码</Text>
+                <Text style={styles.label}>邮箱</Text>
+                <TextInput value={email} onChangeText={setEmail} placeholder="name@example.com" placeholderTextColor={colors.faint} style={styles.input} autoCapitalize="none" keyboardType="email-address" />
+                <Text style={styles.label}>邮箱验证码</Text>
                 <View style={styles.codeRow}>
-                  <TextInput value={smsCode} onChangeText={setSmsCode} placeholder="6 位验证码" placeholderTextColor={colors.faint} style={[styles.input, { flex: 1 }]} keyboardType="number-pad" maxLength={6} />
+                  <TextInput value={emailCode} onChangeText={setEmailCode} placeholder="6 位验证码" placeholderTextColor={colors.faint} style={[styles.input, { flex: 1 }]} keyboardType="number-pad" maxLength={6} />
                   <Pressable style={[styles.codeBtn, (countdown > 0 || smsSending) && { opacity: 0.5 }]} onPress={() => sendCode("register")} disabled={countdown > 0 || smsSending}>
                     <Text style={styles.codeBtnText}>{countdown > 0 ? countdown + "s" : smsSending ? "发送中" : "获取验证码"}</Text>
                   </Pressable>
                 </View>
 
-                <Text style={styles.section}>联系方式（至少填一项）</Text>
-                <Text style={styles.label}>邮箱</Text>
-                <TextInput value={email} onChangeText={setEmail} placeholder="name@example.com" placeholderTextColor={colors.faint} style={styles.input} autoCapitalize="none" keyboardType="email-address" />
+                <Text style={styles.section}>其他联系方式（选填）</Text>
                 <Text style={styles.label}>QQ</Text>
                 <TextInput value={qq} onChangeText={setQq} placeholder="选填" placeholderTextColor={colors.faint} style={styles.input} keyboardType="number-pad" />
                 <Text style={styles.label}>微信</Text>
@@ -445,7 +434,7 @@ export default function AccountScreen() {
 
             {error ? <Text style={styles.error}>{error}</Text> : null}
 
-            {!(mode === "login" && loginMode === "phone") ? (
+            {!(mode === "login" && loginMode === "email") ? (
               <Pressable style={[styles.primary, busy && { opacity: 0.6 }]} onPress={mode === "login" ? submitLogin : submitRegister} disabled={busy}>
                 <Text style={styles.primaryText}>{busy ? "请稍候…" : mode === "login" ? "登录" : "注册并登录"}</Text>
               </Pressable>
@@ -454,7 +443,7 @@ export default function AccountScreen() {
             {mode === "login" ? (
               <>
                 <Pressable onPress={() => router.push("/reset-password")} style={styles.forgot}>
-                  <Text style={styles.forgotText}>忘记密码？用手机验证码重置</Text>
+                  <Text style={styles.forgotText}>忘记密码？用邮箱验证码重置</Text>
                 </Pressable>
                 <Pressable onPress={openForgot} style={styles.forgot}>
                   <Text style={[styles.forgotText, { color: colors.faint }]}>或联系客服追回密码</Text>
@@ -463,7 +452,7 @@ export default function AccountScreen() {
             ) : null}
           </View>
 
-          <Text style={styles.footer}>注册/登录使用官网账号，需完成极验验证；账号数据仅用于官网服务。</Text>
+          <Text style={styles.footer}>注册、邮箱验证码登录需通过邮箱验证；账号数据仅用于官网服务。</Text>
         </>
       )}
 

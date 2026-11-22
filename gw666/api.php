@@ -33,6 +33,9 @@ try {
           'enabled' => sms_enabled(),
           'provider' => sms_provider(),
         ],
+        'email' => [
+          'enabled' => email_verification_enabled(),
+        ],
       ]);
 
     case 'announcements':
@@ -65,6 +68,15 @@ try {
       $st->execute([$device, $contact, mb_substr($title, 0, 200), mb_substr($content, 0, 5000)]);
       json_out(['ok' => true, 'id' => (int)db()->lastInsertId()]);
 
+    case 'send_email_code':
+      $input = json_decode(file_get_contents('php://input'), true) ?: $_POST;
+      $email = trim((string)($input['email'] ?? ''));
+      $scene = (string)($input['scene'] ?? 'register');
+      if (!in_array($scene, ['register', 'login', 'reset'], true)) json_out(['error' => '场景不正确'], 422);
+      $r = email_send_code($email, $scene);
+      if (!$r['ok']) json_out(['error' => $r['error']], 429);
+      json_out(['ok' => true, 'cooldown' => 60]);
+
     case 'send_sms':
       $input = json_decode(file_get_contents('php://input'), true) ?: $_POST;
       $phone = sms_phone((string)($input['phone'] ?? ''));
@@ -81,24 +93,23 @@ try {
       $email = trim((string)($input['email'] ?? ''));
       $qq = trim((string)($input['qq'] ?? ''));
       $wechat = trim((string)($input['wechat'] ?? ''));
-      $phone = sms_phone((string)($input['phone'] ?? ''));
-      $smsCode = trim((string)($input['sms_code'] ?? ''));
-      if (!sms_enabled()) json_out(['error' => '管理员尚未配置短信服务，暂时无法注册'], 503);
-      if (!sms_valid_phone($phone)) json_out(['error' => '请输入正确的手机号'], 422);
+      $email = trim((string)($input['email'] ?? ''));
+      $emailCode = trim((string)($input['email_code'] ?? ''));
+      if (!email_verification_enabled()) json_out(['error' => '管理员尚未配置 SMTP，暂时无法注册'], 503);
+      if (!filter_var($email, FILTER_VALIDATE_EMAIL)) json_out(['error' => '请输入正确的邮箱'], 422);
       if (strlen($u) < 3 || strlen($u) > 24 || !preg_match('/^[A-Za-z0-9_\x{4e00}-\x{9fa5}]+$/u', $u)) {
         json_out(['error' => '用户名需 3-24 位，仅限字母、数字、下划线或中文'], 422);
       }
       if (strlen($p) < 6) json_out(['error' => '密码至少 6 位'], 422);
-      if ($email === '' && $qq === '' && $wechat === '') json_out(['error' => '请至少填写一种联系方式'], 422);
       $cap = verify_captcha($input['captcha'] ?? []);
       if (!$cap['ok']) json_out(['error' => $cap['error']], 422);
-      $exists = db()->prepare('SELECT id FROM users WHERE username = ? OR phone = ?');
-      $exists->execute([$u, $phone]);
-      if ($exists->fetch()) json_out(['error' => '用户名或手机号已被注册'], 409);
-      $sms = sms_verify_code($phone, $smsCode, 'register');
-      if (!$sms['ok']) json_out(['error' => $sms['error']], 422);
-      $st = db()->prepare('INSERT INTO users (username, password_hash, email, qq, wechat, phone, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, "active", NOW(), NOW())');
-      $st->execute([$u, password_hash($p, PASSWORD_DEFAULT), $email, $qq, $wechat, $phone]);
+      $exists = db()->prepare('SELECT id FROM users WHERE username = ? OR email = ?');
+      $exists->execute([$u, $email]);
+      if ($exists->fetch()) json_out(['error' => '用户名或邮箱已被注册'], 409);
+      $mail = email_verify_code($email, $emailCode, 'register');
+      if (!$mail['ok']) json_out(['error' => $mail['error']], 422);
+      $st = db()->prepare('INSERT INTO users (username, password_hash, email, qq, wechat, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, "active", NOW(), NOW())');
+      $st->execute([$u, password_hash($p, PASSWORD_DEFAULT), $email, $qq, $wechat]);
       $id = (int)db()->lastInsertId();
       $token = bin2hex(random_bytes(24));
       db()->prepare('UPDATE users SET token = ?, last_login = NOW() WHERE id = ?')->execute([$token, $id]);
@@ -189,6 +200,41 @@ try {
       $st->execute([$phone]);
       $id = $st->fetchColumn();
       if (!$id) json_out(['error' => '该手机号尚未注册'], 404);
+      db()->prepare('UPDATE users SET password_hash = ?, token = NULL, updated_at = NOW() WHERE id = ?')
+        ->execute([password_hash($p, PASSWORD_DEFAULT), (int)$id]);
+      json_out(['ok' => true]);
+
+    case 'user_login_email':
+      $input = json_decode(file_get_contents('php://input'), true) ?: $_POST;
+      $email = trim((string)($input['email'] ?? ''));
+      $code = trim((string)($input['email_code'] ?? ''));
+      if (!email_verification_enabled()) json_out(['error' => '管理员尚未配置 SMTP'], 503);
+      $v = email_verify_code($email, $code, 'login');
+      if (!$v['ok']) json_out(['error' => $v['error']], 422);
+      $st = db()->prepare('SELECT * FROM users WHERE email = ? ORDER BY id ASC LIMIT 1');
+      $st->execute([$email]);
+      $user = $st->fetch();
+      if (!$user) json_out(['error' => '该邮箱尚未注册'], 404);
+      if (($user['status'] ?? 'active') !== 'active') json_out(['error' => '账号已被停用，请联系客服'], 403);
+      $token = bin2hex(random_bytes(24));
+      db()->prepare('UPDATE users SET token = ?, last_login = NOW() WHERE id = ?')->execute([$token, $user['id']]);
+      $user['token'] = $token;
+      $user['last_login'] = date('Y-m-d H:i:s');
+      json_out(['ok' => true, 'token' => $token, 'user' => public_user($user)]);
+
+    case 'user_reset_password_email':
+      $input = json_decode(file_get_contents('php://input'), true) ?: $_POST;
+      $email = trim((string)($input['email'] ?? ''));
+      $code = trim((string)($input['email_code'] ?? ''));
+      $p = (string)($input['password'] ?? '');
+      if (!email_verification_enabled()) json_out(['error' => '管理员尚未配置 SMTP'], 503);
+      if (strlen($p) < 6) json_out(['error' => '密码至少 6 位'], 422);
+      $v = email_verify_code($email, $code, 'reset');
+      if (!$v['ok']) json_out(['error' => $v['error']], 422);
+      $st = db()->prepare('SELECT id FROM users WHERE email = ? ORDER BY id ASC LIMIT 1');
+      $st->execute([$email]);
+      $id = $st->fetchColumn();
+      if (!$id) json_out(['error' => '该邮箱尚未注册'], 404);
       db()->prepare('UPDATE users SET password_hash = ?, token = NULL, updated_at = NOW() WHERE id = ?')
         ->execute([password_hash($p, PASSWORD_DEFAULT), (int)$id]);
       json_out(['ok' => true]);

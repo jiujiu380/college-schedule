@@ -99,6 +99,18 @@ function ensure_schema(): void {
     payload LONGTEXT,
     updated_at DATETIME
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+  db()->exec("CREATE TABLE IF NOT EXISTS email_codes (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    email VARCHAR(160) NOT NULL,
+    scene VARCHAR(16) NOT NULL,
+    code VARCHAR(8) NOT NULL,
+    expires_at DATETIME NOT NULL,
+    used TINYINT DEFAULT 0,
+    attempts INT DEFAULT 0,
+    created_at DATETIME NOT NULL,
+    INDEX idx_email (email),
+    INDEX idx_created (created_at)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
   db()->exec("CREATE TABLE IF NOT EXISTS sms_codes (
     id INT AUTO_INCREMENT PRIMARY KEY,
     phone VARCHAR(20) NOT NULL,
@@ -169,7 +181,7 @@ function sms_provider(): string {
 }
 
 function sms_enabled(): bool {
-  return in_array(sms_provider(), ['aliyun', 'smsbao', 'tencent'], true);
+  return in_array(sms_provider(), ['aliyun', 'aliyun_sms', 'smsbao', 'tencent'], true);
 }
 
 function sms_phone(string $p): string {
@@ -219,7 +231,7 @@ function sms_aliyun_rpc(string $action, array $params): array {
   $stringToSign = 'POST&%2F&' . rawurlencode($canonical);
   $sig = base64_encode(hash_hmac('sha1', $stringToSign, setting('aliyun_access_key_secret') . '&', true));
   $all['Signature'] = $sig;
-  $res = sms_http('https://dypnsapi.aliyuncs.com/', $all);
+  $res = sms_http('https://' . $domain . '/', $all);
   $json = json_decode($res['body'], true);
   return ['ok' => ($json['Code'] ?? '') === 'OK', 'raw' => $res['body'], 'json' => $json];
 }
@@ -287,24 +299,39 @@ function sms_send_code(string $phone, string $scene): array {
   $expires = date('Y-m-d H:i:s', time() + 300);
 
   if ($provider === 'aliyun') {
-    $templateParam = json_encode(['code' => '##code##'], JSON_UNESCAPED_UNICODE);
-    $r = sms_aliyun_rpc('SendSmsVerifyCode', [
+    $paramName = setting('aliyun_template_param', 'code') ?: 'code';
+    $params = [
       'PhoneNumber' => $phone,
+      'CountryCode' => '86',
       'SignName' => setting('aliyun_sign_name'),
       'TemplateCode' => setting('aliyun_template_code'),
-      'TemplateParam' => $templateParam,
+      'TemplateParam' => json_encode([$paramName => '##code##'], JSON_UNESCAPED_UNICODE),
       'CodeLength' => 6,
       'ValidTime' => 300,
-    ]);
+      'CodeType' => 1,
+    ];
+    if (setting('aliyun_scheme_name') !== '') $params['SchemeName'] = setting('aliyun_scheme_name');
+    $r = sms_aliyun_rpc('SendSmsVerifyCode', $params);
     if (!$r['ok']) {
-      return ['ok' => false, 'error' => '阿里云发送失败：' . (($r['json']['Message'] ?? '') ?: substr((string)$r['raw'], 0, 120))];
+      return ['ok' => false, 'error' => sms_aliyun_hint((array)$r['json'], '阿里云发送失败')];
     }
     db()->prepare('INSERT INTO sms_codes (phone, scene, code, expires_at, used, attempts, created_at) VALUES (?, ?, NULL, ?, 0, 0, NOW())')
       ->execute([$phone, $scene, $expires]);
     return ['ok' => true, 'aliyun' => true];
   }
 
-  if ($provider === 'smsbao') {
+  if ($provider === 'aliyun_sms') {
+    $paramName = setting('aliyun_template_param', 'code') ?: 'code';
+    $r = sms_aliyun_rpc('SendSms', [
+      'PhoneNumbers' => $phone,
+      'SignName' => setting('aliyun_sign_name'),
+      'TemplateCode' => setting('aliyun_template_code'),
+      'TemplateParam' => json_encode([$paramName => $code], JSON_UNESCAPED_UNICODE),
+    ], '2017-05-25', 'dysmsapi.aliyuncs.com');
+    if (!$r['ok']) {
+      return ['ok' => false, 'error' => sms_aliyun_hint((array)$r['json'], '阿里云短信发送失败')];
+    }
+  } elseif ($provider === 'smsbao') {
     $content = str_replace('{code}', $code, setting('smsbao_content', '【知酷课程表】验证码{code}，5分钟内有效'));
     $url = 'https://api.smsbao.com/sms?u=' . urlencode(setting('smsbao_user')) . '&p=' . md5(setting('smsbao_pass')) . '&m=' . urlencode($phone) . '&c=' . urlencode($content);
     $res = sms_http($url);
@@ -339,6 +366,133 @@ function sms_verify_code(string $phone, string $code, string $scene): array {
     return ['ok' => false, 'error' => '验证码不正确'];
   }
   db()->prepare('UPDATE sms_codes SET used = 1 WHERE id = ?')->execute([$row['id']]);
+  return ['ok' => true];
+}
+
+
+
+/* ================= 邮箱验证码 ================= */
+
+function email_verification_enabled(): bool {
+  return setting('smtp_enabled', '0') === '1' && setting('smtp_host') !== '' && setting('smtp_user') !== '';
+}
+
+function smtp_read($fp): string {
+  $data = '';
+  while (!feof($fp)) {
+    $line = fgets($fp, 1024);
+    if ($line === false) break;
+    $data .= $line;
+    if (strlen($line) >= 4 && $line[3] === ' ') break;
+  }
+  return $data;
+}
+
+function smtp_cmd($fp, string $cmd, array $expect = [250]): array {
+  fwrite($fp, $cmd . "\r\n");
+  $resp = smtp_read($fp);
+  $code = (int)substr($resp, 0, 3);
+  return ['ok' => in_array($code, $expect, true), 'code' => $code, 'resp' => $resp];
+}
+
+function smtp_send_mail(string $to, string $subject, string $html): array {
+  $host = setting('smtp_host');
+  $port = (int)setting('smtp_port', '465');
+  $secure = setting('smtp_secure', 'ssl');
+  $user = setting('smtp_user');
+  $pass = setting('smtp_pass');
+  $from = setting('smtp_from') ?: $user;
+  $fromName = setting('smtp_from_name', setting('site_name', '知酷课程表'));
+  if (!$host || !$user || !$pass) return ['ok' => false, 'error' => 'SMTP 未配置完整'];
+
+  $target = ($secure === 'ssl' ? 'ssl://' : '') . $host . ':' . $port;
+  $fp = @fsockopen($target, $port, $errno, $errstr, 15);
+  if (!$fp) return ['ok' => false, 'error' => '连接 SMTP 失败：' . $errstr];
+  stream_set_timeout($fp, 15);
+  $banner = smtp_read($fp);
+  if ((int)substr($banner, 0, 3) !== 220) { fclose($fp); return ['ok' => false, 'error' => 'SMTP 握手失败']; }
+
+  $ehlo = smtp_cmd($fp, 'EHLO ' . ($_SERVER['SERVER_NAME'] ?? 'localhost'), [250]);
+  if (!$ehlo['ok']) { fclose($fp); return ['ok' => false, 'error' => 'EHLO 失败']; }
+
+  if ($secure === 'tls') {
+    $start = smtp_cmd($fp, 'STARTTLS', [220]);
+    if (!$start['ok'] || !stream_socket_enable_crypto($fp, true, STREAM_CRYPTO_METHOD_TLS_CLIENT)) {
+      fclose($fp);
+      return ['ok' => false, 'error' => 'STARTTLS 失败'];
+    }
+    smtp_cmd($fp, 'EHLO ' . ($_SERVER['SERVER_NAME'] ?? 'localhost'), [250]);
+  }
+
+  $auth = smtp_cmd($fp, 'AUTH LOGIN', [334]);
+  if (!$auth['ok']) { fclose($fp); return ['ok' => false, 'error' => 'AUTH LOGIN 不支持']; }
+  smtp_cmd($fp, base64_encode($user), [334]);
+  $login = smtp_cmd($fp, base64_encode($pass), [235]);
+  if (!$login['ok']) { fclose($fp); return ['ok' => false, 'error' => 'SMTP 账号或授权码错误']; }
+
+  $mailFrom = smtp_cmd($fp, 'MAIL FROM:<' . $from . '>', [250]);
+  if (!$mailFrom['ok']) { fclose($fp); return ['ok' => false, 'error' => '发件地址被拒绝']; }
+  $rcpt = smtp_cmd($fp, 'RCPT TO:<' . $to . '>', [250, 251]);
+  if (!$rcpt['ok']) { fclose($fp); return ['ok' => false, 'error' => '收件地址被拒绝']; }
+  if (!smtp_cmd($fp, 'DATA', [354])['ok']) { fclose($fp); return ['ok' => false, 'error' => 'DATA 被拒绝']; }
+
+  $encodedSubject = '=?UTF-8?B?' . base64_encode($subject) . '?=';
+  $encodedName = '=?UTF-8?B?' . base64_encode($fromName) . '?=';
+  $headers = [
+    'From: ' . $encodedName . ' <' . $from . '>',
+    'To: <' . $to . '>',
+    'Subject: ' . $encodedSubject,
+    'MIME-Version: 1.0',
+    'Content-Type: text/html; charset=UTF-8',
+    'Content-Transfer-Encoding: base64',
+    'Date: ' . date('r'),
+  ];
+  $body = chunk_split(base64_encode($html));
+  fwrite($fp, implode("\r\n", $headers) . "\r\n\r\n" . $body . "\r\n.\r\n");
+  $sent = smtp_read($fp);
+  fclose($fp);
+  return ['ok' => (int)substr($sent, 0, 3) === 250, 'error' => (int)substr($sent, 0, 3) === 250 ? '' : '邮件被服务器拒绝：' . trim($sent)];
+}
+
+function email_send_code(string $email, string $scene): array {
+  if (!filter_var($email, FILTER_VALIDATE_EMAIL)) return ['ok' => false, 'error' => '邮箱格式不正确'];
+  if (!email_verification_enabled()) return ['ok' => false, 'error' => '管理员尚未配置 SMTP 邮件服务'];
+
+  $last = db()->prepare('SELECT created_at FROM email_codes WHERE email = ? ORDER BY id DESC LIMIT 1');
+  $last->execute([$email]);
+  $lastAt = $last->fetchColumn();
+  if ($lastAt && strtotime($lastAt) > time() - 60) return ['ok' => false, 'error' => '发送太频繁，请 60 秒后再试'];
+  $count = db()->prepare('SELECT COUNT(*) FROM email_codes WHERE email = ? AND created_at > DATE_SUB(NOW(), INTERVAL 1 DAY)');
+  $count->execute([$email]);
+  if ((int)$count->fetchColumn() >= 10) return ['ok' => false, 'error' => '今日验证码次数已达上限'];
+
+  $code = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+  $expires = date('Y-m-d H:i:s', time() + 600);
+  $name = setting('site_name', '知酷课程表');
+  $html = '<div style="font-family:-apple-system,Segoe UI,PingFang SC,sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#0b1220">'
+    . '<h2 style="margin:0 0 12px">' . htmlspecialchars($name) . ' 验证码</h2>'
+    . '<p style="color:#5b6474;font-size:14px;line-height:1.8">你的验证码是：</p>'
+    . '<p style="font-size:32px;font-weight:700;letter-spacing:6px;color:#2563eb;margin:12px 0">' . $code . '</p>'
+    . '<p style="color:#8b93a3;font-size:12px;line-height:1.8">10 分钟内有效，请勿转发给他人。若非本人操作请忽略。</p></div>';
+  $res = smtp_send_mail($email, $name . ' 验证码', $html);
+  if (!$res['ok']) return ['ok' => false, 'error' => $res['error']];
+
+  db()->prepare('INSERT INTO email_codes (email, scene, code, expires_at, used, attempts, created_at) VALUES (?, ?, ?, ?, 0, 0, NOW())')
+    ->execute([$email, $scene, $code, $expires]);
+  return ['ok' => true];
+}
+
+function email_verify_code(string $email, string $code, string $scene): array {
+  $st = db()->prepare('SELECT * FROM email_codes WHERE email = ? AND scene = ? AND used = 0 AND expires_at > NOW() ORDER BY id DESC LIMIT 1');
+  $st->execute([$email, $scene]);
+  $row = $st->fetch();
+  if (!$row) return ['ok' => false, 'error' => '验证码已过期，请重新获取'];
+  if ((int)$row['attempts'] >= 5) return ['ok' => false, 'error' => '尝试次数过多，请重新获取'];
+  if (!hash_equals((string)$row['code'], $code)) {
+    db()->prepare('UPDATE email_codes SET attempts = attempts + 1 WHERE id = ?')->execute([$row['id']]);
+    return ['ok' => false, 'error' => '验证码不正确'];
+  }
+  db()->prepare('UPDATE email_codes SET used = 1 WHERE id = ?')->execute([$row['id']]);
   return ['ok' => true];
 }
 

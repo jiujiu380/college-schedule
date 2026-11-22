@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScreenStatusBar } from "../components/ScreenStatusBar";
-import { resetPassword, sendSmsCode } from "../lib/account";
+import { resetPasswordEmail, sendEmailCode } from "../lib/account";
 import { useTheme } from "../lib/theme-context";
 import { Colors, radius } from "../theme";
 
@@ -13,7 +13,7 @@ export default function ResetPasswordScreen() {
   const insets = useSafeAreaInsets();
   const { colors, scheme } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -29,14 +29,14 @@ export default function ResetPasswordScreen() {
   }, [countdown]);
 
   const sendCode = async () => {
-    if (!/^1[3-9]\d{9}$/.test(phone)) {
-      setError("请输入正确的手机号");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setError("请输入正确的邮箱");
       return;
     }
     setSending(true);
     setError("");
     try {
-      await sendSmsCode(phone, "reset");
+      await sendEmailCode(email.trim(), "reset");
       setCountdown(60);
       Alert.alert("验证码已发送", "请查看短信，5 分钟内有效。");
     } catch (e) {
@@ -47,14 +47,14 @@ export default function ResetPasswordScreen() {
   };
 
   const submit = async () => {
-    if (!/^1[3-9]\d{9}$/.test(phone)) return setError("请输入正确的手机号");
-    if (!code.trim()) return setError("请填写短信验证码");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return setError("请输入正确的邮箱");
+    if (!code.trim()) return setError("请填写邮箱验证码");
     if (password.length < 6) return setError("新密码至少 6 位");
     if (password !== confirm) return setError("两次输入的密码不一致");
     setBusy(true);
     setError("");
     try {
-      await resetPassword(phone, code.trim(), password);
+      await resetPasswordEmail(email.trim(), code.trim(), password);
       Alert.alert("密码已重置", "请使用新密码登录。", [{ text: "去登录", onPress: () => router.replace("/account") }]);
     } catch (e) {
       setError(String(e instanceof Error ? e.message : e));
@@ -69,12 +69,12 @@ export default function ResetPasswordScreen() {
 
       <View style={styles.card}>
         <Text style={styles.title}>重置密码</Text>
-        <Text style={styles.desc}>用注册时的手机号接收验证码，验证通过后直接设置新密码。</Text>
+        <Text style={styles.desc}>用注册时的邮箱接收验证码，验证通过后直接设置新密码。</Text>
 
-        <Text style={styles.label}>手机号</Text>
-        <TextInput value={phone} onChangeText={setPhone} placeholder="11 位手机号" placeholderTextColor={colors.faint} style={styles.input} keyboardType="phone-pad" maxLength={11} />
+        <Text style={styles.label}>邮箱</Text>
+        <TextInput value={email} onChangeText={setEmail} placeholder="name@example.com" placeholderTextColor={colors.faint} style={styles.input} autoCapitalize="none" keyboardType="email-address" />
 
-        <Text style={styles.label}>短信验证码</Text>
+        <Text style={styles.label}>邮箱验证码</Text>
         <View style={styles.row}>
           <TextInput value={code} onChangeText={setCode} placeholder="6 位验证码" placeholderTextColor={colors.faint} style={[styles.input, { flex: 1 }]} keyboardType="number-pad" maxLength={6} />
           <Pressable style={[styles.codeBtn, (countdown > 0 || sending) && { opacity: 0.5 }]} onPress={sendCode} disabled={countdown > 0 || sending}>
@@ -96,7 +96,7 @@ export default function ResetPasswordScreen() {
 
         <Pressable onPress={() => router.push("/contact")} style={styles.contact}>
           <Ionicons name="chatbubble-outline" size={13} color={colors.faint} />
-          <Text style={styles.contactText}>手机号已停用？联系开发者追回密码</Text>
+          <Text style={styles.contactText}>邮箱不可用？联系开发者追回密码</Text>
         </Pressable>
       </View>
     </ScrollView>
