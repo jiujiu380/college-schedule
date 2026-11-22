@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
+import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import { Animated, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -13,10 +14,10 @@ const META: Record<string, { label: string; active: keyof typeof Ionicons.glyphM
 };
 
 type TabBarState = { index: number; routes: { key: string; name: string }[] };
-type TabBarNav = { emit: (e: { type: string; target: string; canPreventDefault: boolean }) => { defaultPrevented: boolean }; navigate: (name: string) => void };
 
-export function GlassTabBar({ state, navigation }: { state: TabBarState; navigation: TabBarNav }) {
+export function GlassTabBar({ state, navigation, navigateToTab }: { state: TabBarState; navigation?: any; navigateToTab?: (key: string) => void }) {
   const { colors, scheme } = useTheme();
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const dark = scheme === "dark";
   const [width, setWidth] = useState(0);
@@ -60,8 +61,20 @@ export function GlassTabBar({ state, navigation }: { state: TabBarState; navigat
             const meta = META[route.name] ?? META.home;
             const focused = state.index === i;
             const onPress = () => {
-              const event = navigation.emit({ type: "tabPress", target: route.key, canPreventDefault: true });
-              if (!focused && !event.defaultPrevented) navigation.navigate(route.name);
+              if (focused) return;
+              try {
+                if (typeof navigateToTab === "function") {
+                  navigateToTab(route.key);
+                  return;
+                }
+                if (navigation && typeof navigation.navigate === "function") {
+                  navigation.navigate(route.name);
+                  return;
+                }
+                router.navigate("/" + route.name);
+              } catch {
+                router.navigate("/" + route.name);
+              }
             };
             return (
               <Pressable key={route.key} onPress={onPress} style={styles.item} android_ripple={{ color: "transparent" }}>
@@ -77,7 +90,7 @@ export function GlassTabBar({ state, navigation }: { state: TabBarState; navigat
 }
 
 const styles = StyleSheet.create({
-  wrap: { position: "absolute", left: 16, right: 16 },
+  wrap: { position: "absolute", left: 16, right: 16, zIndex: 50 },
   bar: {
     height: 64,
     borderRadius: 30,
@@ -87,7 +100,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.16,
     shadowRadius: 22,
     shadowOffset: { width: 0, height: 10 },
-    elevation: 12,
+    elevation: 24,
   },
   barLight: { borderColor: "rgba(255,255,255,0.7)" },
   barDark: { borderColor: "rgba(255,255,255,0.10)" },
