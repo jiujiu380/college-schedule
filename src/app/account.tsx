@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Linking from "expo-linking";
-import { useFocusEffect, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -15,6 +15,7 @@ import { Colors, radius } from "../theme";
 
 export default function AccountScreen() {
   const router = useRouter();
+  const { gate } = useLocalSearchParams<{ gate?: string }>();
   const insets = useSafeAreaInsets();
   const { colors, scheme } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -32,6 +33,7 @@ export default function AccountScreen() {
   const [captchaVisible, setCaptchaVisible] = useState(false);
   const [pendingAction, setPendingAction] = useState<null | ((cap?: CaptchaPayload) => Promise<void>)>(null);
   const [syncing, setSyncing] = useState(false);
+  const [agree, setAgree] = useState(false);
   const { tables, activeId, restore } = useSchedule();
 
   const load = useCallback(async () => {
@@ -70,7 +72,11 @@ export default function AccountScreen() {
         const u = await loginAccount(username.trim(), password, cap);
         setUser(u);
         setPassword("");
-        Alert.alert("登录成功", "欢迎回来，" + u.username);
+        if (gate) {
+          router.replace("/home");
+        } else {
+          Alert.alert("登录成功", "欢迎回来，" + u.username);
+        }
       } catch (e) {
         setError(String(e instanceof Error ? e.message : e));
       } finally {
@@ -95,6 +101,10 @@ export default function AccountScreen() {
       setError("请至少填写一种联系方式");
       return;
     }
+    if (!agree) {
+      setError("请先阅读并勾选同意相关协议");
+      return;
+    }
     void begin(async (cap) => {
       try {
         const registered = await registerAccount({
@@ -108,7 +118,11 @@ export default function AccountScreen() {
         setUser(registered);
         setPassword("");
         setConfirm("");
-        Alert.alert("注册成功", "账号已创建并自动登录。");
+        if (gate) {
+          router.replace("/home");
+        } else {
+          Alert.alert("注册成功", "账号已创建并自动登录。");
+        }
       } catch (e) {
         setError(String(e instanceof Error ? e.message : e));
       } finally {
@@ -199,6 +213,8 @@ export default function AccountScreen() {
         </>
       ) : (
         <>
+          {gate ? <Text style={styles.gateHint}>登录或注册后即可使用全部功能</Text> : null}
+
           <View style={styles.tabs}>
             {(["login", "register"] as const).map((m) => (
               <Pressable key={m} onPress={() => { setMode(m); setError(""); }} style={[styles.tab, mode === m && styles.tabActive]}>
@@ -227,6 +243,24 @@ export default function AccountScreen() {
                 <Text style={styles.label}>微信</Text>
                 <TextInput value={wechat} onChangeText={setWechat} placeholder="选填" placeholderTextColor={colors.faint} style={styles.input} autoCapitalize="none" />
               </>
+            ) : null}
+
+            {mode === "register" ? (
+              <View style={styles.agreeRow}>
+                <Pressable
+                  style={[styles.checkbox, agree && { backgroundColor: colors.brand, borderColor: colors.brand }]}
+                  onPress={() => setAgree((v) => !v)}
+                  hitSlop={6}
+                >
+                  {agree ? <Ionicons name="checkmark" size={13} color="#FFFFFF" /> : null}
+                </Pressable>
+                <Text style={styles.agreeText}>
+                  我已阅读并同意
+                  <Text style={styles.link} onPress={() => router.push("/legal?doc=terms")}>《用户使用协议》</Text>
+                  <Text style={styles.link} onPress={() => router.push("/legal?doc=register")}>《用户注册协议》</Text>
+                  <Text style={styles.link} onPress={() => router.push("/legal?doc=privacy")}>《用户隐私政策》</Text>
+                </Text>
+              </View>
             ) : null}
 
             {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -286,6 +320,11 @@ const makeStyles = (colors: Colors) =>
     forgot: { marginTop: 14, alignItems: "center" },
     forgotText: { fontSize: 12, color: colors.brand },
     footer: { fontSize: 10.5, color: colors.faint, textAlign: "center", marginTop: 18, lineHeight: 17 },
+    gateHint: { fontSize: 12.5, color: colors.sub, textAlign: "center", marginBottom: 14, lineHeight: 19 },
+    agreeRow: { flexDirection: "row", alignItems: "flex-start", gap: 8, marginTop: 16 },
+    checkbox: { width: 18, height: 18, borderRadius: 4, borderWidth: 1, borderColor: colors.fieldBorder, alignItems: "center", justifyContent: "center", marginTop: 1 },
+    agreeText: { flex: 1, fontSize: 11.5, color: colors.sub, lineHeight: 19 },
+    link: { color: colors.brand },
     syncTitle: { fontSize: 14, fontWeight: "600", color: colors.ink },
     syncSub: { fontSize: 11.5, color: colors.faint, lineHeight: 18, marginTop: 8, marginBottom: 14 },
   });

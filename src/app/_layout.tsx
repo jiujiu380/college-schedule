@@ -5,6 +5,7 @@ import React, { useEffect, useRef } from "react";
 import { Platform, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { loadAgreed } from "../lib/agreement";
+import { getAccountToken } from "../lib/account";
 import { AuthProvider } from "../lib/auth";
 import { ensureChannel } from "../lib/notifications";
 import { AppRefreshProvider } from "../lib/app-refresh";
@@ -17,8 +18,17 @@ function AgreementGuard() {
   const router = useRouter();
   useEffect(() => {
     let alive = true;
-    loadAgreed().then((ok) => {
-      if (alive && !ok && pathname !== "/agreement") router.replace("/agreement");
+    const isLegal = pathname.startsWith("/legal");
+    loadAgreed().then(async (ok) => {
+      if (!alive) return;
+      if (!ok) {
+        if (pathname !== "/agreement" && pathname !== "/intro" && !isLegal) router.replace("/agreement");
+        return;
+      }
+      const token = await getAccountToken();
+      if (!alive) return;
+      const publicPath = pathname === "/intro" || pathname === "/agreement" || pathname === "/account" || isLegal;
+      if (!token && !publicPath) router.replace("/account?gate=1");
     });
     return () => {
       alive = false;
@@ -109,6 +119,8 @@ function ThemedRoot() {
                 <Stack.Screen name="school-login" options={{ ...headerOptions, title: "登录教务系统" }} />
                 <Stack.Screen name="import" options={{ ...headerOptions, title: "导入课表" }} />
                 <Stack.Screen name="backup" options={{ ...headerOptions, title: "备份与恢复" }} />
+                <Stack.Screen name="intro" options={{ headerShown: false }} />
+                <Stack.Screen name="legal" options={{ ...headerOptions, title: "协议" }} />
                 <Stack.Screen name="account" options={{ ...headerOptions, title: "账号" }} />
                 <Stack.Screen name="contact" options={{ ...headerOptions, title: "联系作者" }} />
                 <Stack.Screen name="announcements" options={{ ...headerOptions, title: "公告" }} />
