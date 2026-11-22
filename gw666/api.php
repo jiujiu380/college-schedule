@@ -80,7 +80,13 @@ try {
       if ($exists->fetch()) json_out(['error' => '用户名已被注册'], 409);
       $st = db()->prepare('INSERT INTO users (username, password_hash, email, qq, wechat, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, "active", NOW(), NOW())');
       $st->execute([$u, password_hash($p, PASSWORD_DEFAULT), $email, $qq, $wechat]);
-      json_out(['ok' => true, 'id' => (int)db()->lastInsertId()]);
+      $id = (int)db()->lastInsertId();
+      $token = bin2hex(random_bytes(24));
+      db()->prepare('UPDATE users SET token = ?, last_login = NOW() WHERE id = ?')->execute([$token, $id]);
+      $row = db()->prepare('SELECT * FROM users WHERE id = ?');
+      $row->execute([$id]);
+      $user = $row->fetch();
+      json_out(['ok' => true, 'id' => $id, 'token' => $token, 'user' => public_user($user)]);
 
     case 'user_login':
       $input = json_decode(file_get_contents('php://input'), true) ?: $_POST;

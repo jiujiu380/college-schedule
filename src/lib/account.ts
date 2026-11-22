@@ -62,9 +62,13 @@ export async function registerAccount(input: {
   qq?: string;
   wechat?: string;
   captcha?: CaptchaPayload;
-}): Promise<void> {
-  await postJson("/api.php?action=user_register", input);
-  await loginAccount(input.username, input.password, input.captcha);
+}): Promise<AccountUser> {
+  const data = await postJson("/api.php?action=user_register", input);
+  if (data?.token && data?.user) {
+    await saveSession(data.token, data.user);
+    return data.user as AccountUser;
+  }
+  return loginAccount(input.username, input.password, input.captcha);
 }
 
 export async function refreshAccount(): Promise<AccountUser | null> {

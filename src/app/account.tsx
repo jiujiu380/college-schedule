@@ -93,7 +93,7 @@ export default function AccountScreen() {
     }
     void begin(async (cap) => {
       try {
-        await registerAccount({
+        const registered = await registerAccount({
           username: username.trim(),
           password,
           email: email.trim(),
@@ -101,8 +101,7 @@ export default function AccountScreen() {
           wechat: wechat.trim(),
           captcha: cap,
         });
-        const u = await getCachedAccount();
-        setUser(u);
+        setUser(registered);
         setPassword("");
         setConfirm("");
         Alert.alert("注册成功", "账号已创建并自动登录。");
