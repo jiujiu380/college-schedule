@@ -12,10 +12,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $wechat = trim((string)($_POST['wechat'] ?? ''));
   $status = ($_POST['status'] ?? 'active') === 'disabled' ? 'disabled' : 'active';
   $nickname = trim((string)($_POST['nickname'] ?? ''));
+  $phone = preg_replace('/\D/', '', (string)($_POST['phone'] ?? ''));
   $newpass = (string)($_POST['new_password'] ?? '');
   if ($id > 0) {
-    db()->prepare('UPDATE users SET nickname = ?, email = ?, qq = ?, wechat = ?, status = ?, updated_at = NOW() WHERE id = ?')
-      ->execute([mb_substr($nickname, 0, 20), $email, $qq, $wechat, $status, $id]);
+    db()->prepare('UPDATE users SET nickname = ?, phone = ?, email = ?, qq = ?, wechat = ?, status = ?, updated_at = NOW() WHERE id = ?')
+      ->execute([mb_substr($nickname, 0, 20), $phone ?: null, $email, $qq, $wechat, $status, $id]);
     if (!empty($_FILES['avatar']['tmp_name'])) {
       $ext = strtolower(pathinfo($_FILES['avatar']['name'], PATHINFO_EXTENSION));
       if (in_array($ext, ['png', 'jpg', 'jpeg', 'webp'], true)) {
@@ -68,6 +69,7 @@ require __DIR__ . '/layout_top.php';
         <?php if (!empty($r['avatar'])): ?><img class="thumb" src="../<?= e($r['avatar']) ?>" alt=""><?php endif; ?>
         <b><?= e($r['username']) ?></b>
         <?php if (!empty($r['nickname'])): ?><div style="font-size:11px;color:#8b93a3">昵称：<?= e($r['nickname']) ?></div><?php endif; ?>
+        <?php if (!empty($r['phone'])): ?><div style="font-size:11px;color:#8b93a3">手机：<?= e($r['phone']) ?></div><?php endif; ?>
       </td>
       <td style="font-size:12px;color:#5b6474">
         <?= e($r['email'] ?? '') ?><br><?= e($r['qq'] ?? '') ?><?= $r['qq'] ? ' (QQ)' : '' ?><br><?= e($r['wechat'] ?? '') ?><?= $r['wechat'] ? ' (微信)' : '' ?>
@@ -101,6 +103,7 @@ require __DIR__ . '/layout_top.php';
     <div class="row mt">
       <div><label>邮箱</label><input name="email" value="<?= e($current['email'] ?? '') ?>"></div>
       <div><label>QQ</label><input name="qq" value="<?= e($current['qq'] ?? '') ?>"></div>
+      <div><label>手机号</label><input name="phone" value="<?= e($current['phone'] ?? '') ?>" maxlength="11"></div>
     </div>
     <div class="row mt">
       <div><label>微信</label><input name="wechat" value="<?= e($current['wechat'] ?? '') ?>"></div>

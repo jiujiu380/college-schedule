@@ -9,6 +9,7 @@ export type AccountUser = {
   username: string;
   nickname?: string | null;
   avatar?: string | null;
+  phone?: string | null;
   email: string;
   qq: string;
   wechat: string;
@@ -57,15 +58,45 @@ export async function loginAccount(username: string, password: string, captcha?:
   return data.user as AccountUser;
 }
 
+export async function sendSmsCode(phone: string, scene: "register" | "login" | "reset"): Promise<void> {
+  const base = await getSiteBase();
+  const res = await fetch(base + "/api.php?action=send_sms", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ phone, scene }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.error || "验证码发送失败");
+}
+
+export async function loginWithPhone(phone: string, smsCode: string): Promise<AccountUser> {
+  const data = await postJson("/api.php?action=user_login_phone", { phone, sms_code: smsCode });
+  await saveSession(data.token, data.user);
+  return data.user as AccountUser;
+}
+
+export async function resetPassword(phone: string, smsCode: string, password: string): Promise<void> {
+  const base = await getSiteBase();
+  const res = await fetch(base + "/api.php?action=user_reset_password", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ phone, sms_code: smsCode, password }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.error || "重置失败");
+}
+
 export async function registerAccount(input: {
   username: string;
   password: string;
   email?: string;
   qq?: string;
   wechat?: string;
+  phone?: string;
+  smsCode?: string;
   captcha?: CaptchaPayload;
 }): Promise<AccountUser> {
-  const data = await postJson("/api.php?action=user_register", input);
+  const data = await postJson("/api.php?action=user_register", { ...input, sms_code: input.smsCode });
   if (data?.token && data?.user) {
     await saveSession(data.token, data.user);
     return data.user as AccountUser;

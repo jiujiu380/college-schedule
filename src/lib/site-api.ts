@@ -12,6 +12,7 @@ export type SiteInfo = {
   download: string;
   contact: { email: string; qq: string; wechat: string; site: string };
   captcha?: { enabled: boolean; id: string };
+  sms?: { enabled: boolean; provider: string };
 };
 
 export type Announcement = {
