@@ -67,6 +67,52 @@ export async function cancelWeatherReminder(): Promise<void> {
   }
 }
 
+async function fetchDomesticWeather(city: string | null): Promise<WeatherNow | null> {
+  if (!city) return null;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 9000);
+  try {
+    const res = await fetch("https://api.vvhan.com/api/weather?city=" + encodeURIComponent(city), { signal: controller.signal });
+    if (!res.ok) return null;
+    const j: any = await res.json();
+    if (j && j.success === false) return null;
+    const d: any = j.data ?? j;
+    const temp = Math.round(Number(d.temp ?? d.temperature ?? 0));
+    if (!Number.isFinite(temp) || (temp === 0 && !d.weather)) return null;
+    const label = String(d.weather ?? d.wea ?? "未知");
+    const today = new Date();
+    const iso = today.getFullYear() + "-" + String(today.getMonth() + 1).padStart(2, "0") + "-" + String(today.getDate()).padStart(2, "0");
+    const forecast = Array.isArray(d.forecast) ? d.forecast : Array.isArray(j.forecast) ? j.forecast : [];
+    const days: WeatherDay[] = forecast.slice(0, 3).map((x: any) => ({
+      date: String(x.date ?? x.day ?? iso),
+      code: 0,
+      label: String(x.weather ?? x.wea ?? label),
+      min: Math.round(Number(x.temp_min ?? x.min ?? temp)),
+      max: Math.round(Number(x.temp_max ?? x.max ?? temp)),
+      rain: Math.round(Number(x.rain ?? x.precip ?? 0)),
+    }));
+    if (!days.length) {
+      days.push({ date: iso, code: 0, label, min: temp, max: temp, rain: 0 });
+    }
+    return {
+      city: String(j.city ?? city),
+      temp,
+      feels: temp,
+      humidity: Math.round(Number(d.humidity ?? 0)),
+      wind: Math.round(Number(d.wind ?? d.win ?? 0)),
+      code: 0,
+      label,
+      rainAlert: null,
+      days,
+      updatedAt: Date.now(),
+    };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function loadWeather(): Promise<WeatherNow> {
   const perm = await Location.requestForegroundPermissionsAsync();
   if (!perm.granted) throw new Error("没有定位权限，无法获取本地天气");
@@ -84,6 +130,9 @@ export async function loadWeather(): Promise<WeatherNow> {
     }
     if (city) await setWeatherCity(city);
   }
+
+  const domestic = await fetchDomesticWeather(city);
+  if (domestic) return domestic;
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 15000);

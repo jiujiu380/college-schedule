@@ -94,6 +94,11 @@ function ensure_schema(): void {
     updated_at DATETIME,
     last_login DATETIME
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+  db()->exec("CREATE TABLE IF NOT EXISTS user_data (
+    user_id INT PRIMARY KEY,
+    payload LONGTEXT,
+    updated_at DATETIME
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 }
 
 function captcha_enabled(): bool {

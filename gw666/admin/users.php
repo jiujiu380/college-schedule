@@ -67,6 +67,12 @@ require __DIR__ . '/layout_top.php';
 <?php if ($current): ?>
 <div class="card">
   <h2>用户 #<?= (int)$current['id'] ?> · <?= e($current['username']) ?></h2>
+  <?php
+    $cloud = db()->prepare('SELECT payload, updated_at FROM user_data WHERE user_id = ?');
+    $cloud->execute([(int)$current['id']]);
+    $c = $cloud->fetch();
+  ?>
+  <p class="muted">云端数据：<?= $c ? (number_format(strlen($c['payload']) / 1024, 1) . ' KB · 更新于 ' . $c['updated_at']) : '暂无' ?></p>
   <form method="post">
     <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
     <input type="hidden" name="id" value="<?= (int)$current['id'] ?>">

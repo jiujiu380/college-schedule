@@ -17,6 +17,7 @@ export default function SemesterScreen() {
   const { colors, scheme } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { activeTable, updateTable, setWeek } = useSchedule();
+  const [name, setName] = useState(activeTable.name);
   const [startDate, setStartDate] = useState(activeTable.startDate);
   const [totalWeeks, setTotalWeeks] = useState(String(activeTable.totalWeeks));
 
@@ -31,7 +32,7 @@ export default function SemesterScreen() {
       return;
     }
     const weeks = Math.min(Math.max(Number(totalWeeks) || 20, 1), 30);
-    updateTable({ startDate, totalWeeks: weeks });
+    updateTable({ name: name.trim() || activeTable.name, startDate, totalWeeks: weeks });
     setWeek(Math.min(Math.max(weekOfDate(startDate), 1), weeks));
     Alert.alert("已保存", `开学时间 ${startDate}，共 ${weeks} 周。`);
     router.back();
@@ -47,7 +48,9 @@ export default function SemesterScreen() {
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.label}>开学日期（第 1 周周一）</Text>
+        <Text style={styles.label}>课表名称</Text>
+        <TextInput value={name} onChangeText={setName} placeholder="例如：2026 秋季课表" placeholderTextColor={colors.faint} style={styles.input} />
+        <Text style={[styles.label, { marginTop: 16 }]}>开学日期（第 1 周周一）</Text>
         <TextInput
           value={startDate}
           onChangeText={setStartDate}

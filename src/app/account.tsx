@@ -8,6 +8,8 @@ import { CaptchaModal } from "../components/CaptchaModal";
 import { ScreenStatusBar } from "../components/ScreenStatusBar";
 import { AccountUser, CaptchaPayload, getCachedAccount, loginAccount, logoutAccount, refreshAccount, registerAccount } from "../lib/account";
 import { fetchSiteInfo, getSiteBase } from "../lib/site-api";
+import { applyCloudData, downloadCloud, uploadCloud } from "../lib/cloud-sync";
+import { useSchedule } from "../lib/schedule-store";
 import { useTheme } from "../lib/theme-context";
 import { Colors, radius } from "../theme";
 
@@ -29,6 +31,8 @@ export default function AccountScreen() {
   const [busy, setBusy] = useState(false);
   const [captchaVisible, setCaptchaVisible] = useState(false);
   const [pendingAction, setPendingAction] = useState<null | ((cap?: CaptchaPayload) => Promise<void>)>(null);
+  const [syncing, setSyncing] = useState(false);
+  const { tables, activeId, restore } = useSchedule();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -118,6 +122,41 @@ export default function AccountScreen() {
     Linking.openURL(base + "/forgot.php").catch(() => Alert.alert("无法打开", "请访问 " + base + "/forgot.php"));
   };
 
+  const syncUp = async () => {
+    setSyncing(true);
+    try {
+      await uploadCloud(tables, activeId);
+      Alert.alert("已上传", "课表、备忘录、日程已保存到官网数据库。");
+    } catch (e) {
+      Alert.alert("上传失败", String(e instanceof Error ? e.message : e));
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const syncDown = async () => {
+    setSyncing(true);
+    try {
+      const cloud = await downloadCloud();
+      if (!cloud.data) {
+        Alert.alert("云端暂无数据", "请先在登录状态下点「上传当前数据」。");
+        return;
+      }
+      Alert.alert("从云端恢复", `将用云端数据覆盖本机（${cloud.updatedAt ?? ""}），确定？`, [
+        { text: "取消", style: "cancel" },
+        { text: "恢复", style: "destructive", onPress: async () => {
+            await applyCloudData(cloud.data!);
+            if (cloud.data!.tables?.length) restore(cloud.data!.tables, cloud.data!.activeId);
+            Alert.alert("已恢复", "课表、备忘录、日程已从云端恢复。");
+          } },
+      ]);
+    } catch (e) {
+      Alert.alert("恢复失败", String(e instanceof Error ? e.message : e));
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const logout = () => {
     Alert.alert("退出登录", "确定退出当前账号？", [
       { text: "取消", style: "cancel" },
@@ -144,6 +183,16 @@ export default function AccountScreen() {
               <View style={styles.infoRow}><Text style={styles.infoLabel}>QQ</Text><Text style={styles.infoValue}>{user.qq || "—"}</Text></View>
               <View style={styles.infoRow}><Text style={styles.infoLabel}>微信</Text><Text style={styles.infoValue}>{user.wechat || "—"}</Text></View>
             </View>
+          </View>
+          <View style={styles.card}>
+            <Text style={styles.syncTitle}>云端同步</Text>
+            <Text style={styles.syncSub}>课表、备忘录、日程会保存到官网数据库，换设备可恢复。修改课表后约 5 秒自动上传。</Text>
+            <Pressable style={[styles.primary, syncing && { opacity: 0.6 }]} onPress={syncUp} disabled={syncing}>
+              <Text style={styles.primaryText}>{syncing ? "同步中…" : "上传当前数据"}</Text>
+            </Pressable>
+            <Pressable style={styles.ghostBtn} onPress={syncDown} disabled={syncing}>
+              <Text style={styles.ghostText}>从云端恢复</Text>
+            </Pressable>
           </View>
           <Pressable style={styles.ghostBtn} onPress={logout}><Text style={styles.ghostText}>退出登录</Text></Pressable>
           <Text style={styles.footer}>账号数据保存在官网服务器；课表、备忘录等仍只在本机。</Text>
@@ -237,4 +286,6 @@ const makeStyles = (colors: Colors) =>
     forgot: { marginTop: 14, alignItems: "center" },
     forgotText: { fontSize: 12, color: colors.brand },
     footer: { fontSize: 10.5, color: colors.faint, textAlign: "center", marginTop: 18, lineHeight: 17 },
+    syncTitle: { fontSize: 14, fontWeight: "600", color: colors.ink },
+    syncSub: { fontSize: 11.5, color: colors.faint, lineHeight: 18, marginTop: 8, marginBottom: 14 },
   });

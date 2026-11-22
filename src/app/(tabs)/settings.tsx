@@ -138,8 +138,8 @@ export default function SettingsScreen() {
         </Pressable>
         <Pressable style={[styles.row, { borderTopWidth: 1, borderTopColor: colors.line }]} onPress={() => router.push("/semester")}>
           <Ionicons name="calendar-number-outline" size={17} color={colors.sub} />
-          <Text style={styles.rowLabel}>开学时间</Text>
-          <Text style={styles.rowValue}>{activeTable.startDate}</Text>
+          <Text style={styles.rowLabel}>课表信息</Text>
+          <Text style={styles.rowValue}>{activeTable.name}</Text>
           <Ionicons name="chevron-forward" size={14} color={colors.faint} />
         </Pressable>
         <Pressable style={[styles.row, { borderTopWidth: 1, borderTopColor: colors.line }]} onPress={() => router.push("/periods")}>

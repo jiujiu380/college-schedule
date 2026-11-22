@@ -30,6 +30,22 @@ Base：`https://你的域名/api.php`
 | `?action=update` | 官网最新版本（供 App 内更新） |
 | `?action=tickets&device_id=xxx` | 该设备的工单列表 |
 | `POST ?action=ticket_create` | 提交工单，JSON：device_id/title/content/contact |
+| `POST ?action=user_register` | 注册：username/password/email/qq/wechat/captcha |
+| `POST ?action=user_login` | 登录：username/password/captcha，返回 token |
+| `GET ?action=user_me&token=` | 当前用户信息 |
+| `POST ?action=user_logout` | 退出登录 |
+| `POST ?action=sync_save` | 上传课表/备忘录/日程，JSON：token/data |
+| `GET ?action=sync_load&token=` | 读取云端数据 |
+
+## 极验验证码
+
+后台「网站设置」填 GeeTest v4 的 Captcha ID / Key，并勾选启用；未配置时注册登录自动跳过验证。
+极验后台需把官网域名加入白名单。App 通过 WebView 打开 `/captcha.php` 完成验证。
+
+## 云同步
+
+登录后课表变化约 5 秒自动上传；账号页可手动「上传当前数据 / 从云端恢复」。
+云端数据存在 `user_data` 表（user_id / payload / updated_at），后台用户详情可看大小与时间。
 
 ## App 侧对接
 

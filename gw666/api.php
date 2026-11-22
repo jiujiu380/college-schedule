@@ -114,6 +114,31 @@ try {
       if (!$user) json_out(['error' => '登录已失效'], 401);
       json_out(['user' => public_user($user)]);
 
+    case 'sync_save':
+      $input = json_decode(file_get_contents('php://input'), true) ?: $_POST;
+      $token = trim((string)($input['token'] ?? ''));
+      $st = db()->prepare('SELECT id FROM users WHERE token = ?');
+      $st->execute([$token]);
+      $uid = $st->fetchColumn();
+      if (!$uid) json_out(['error' => '登录已失效'], 401);
+      $payload = json_encode($input['data'] ?? null, JSON_UNESCAPED_UNICODE);
+      if ($payload === false || strlen($payload) > 8 * 1024 * 1024) json_out(['error' => '数据过大或格式错误'], 422);
+      db()->prepare('INSERT INTO user_data (user_id, payload, updated_at) VALUES (?, ?, NOW()) ON DUPLICATE KEY UPDATE payload = VALUES(payload), updated_at = VALUES(updated_at)')
+        ->execute([(int)$uid, $payload]);
+      json_out(['ok' => true, 'size' => strlen($payload)]);
+
+    case 'sync_load':
+      $token = trim((string)($_GET['token'] ?? ''));
+      $st = db()->prepare('SELECT id FROM users WHERE token = ?');
+      $st->execute([$token]);
+      $uid = $st->fetchColumn();
+      if (!$uid) json_out(['error' => '登录已失效'], 401);
+      $row = db()->prepare('SELECT payload, updated_at FROM user_data WHERE user_id = ?');
+      $row->execute([(int)$uid]);
+      $data = $row->fetch();
+      if (!$data) json_out(['data' => null]);
+      json_out(['data' => json_decode($data['payload'], true), 'updated_at' => $data['updated_at']]);
+
     case 'user_logout':
       $input = json_decode(file_get_contents('php://input'), true) ?: $_POST;
       $token = trim((string)($input['token'] ?? ''));

@@ -109,7 +109,7 @@ export default function WeatherScreen() {
         </View>
       </View>
 
-      <Text style={styles.footer}>天气数据来自 Open-Meteo，定位仅用于获取本地天气，不会上传。</Text>
+      <Text style={styles.footer}>天气数据来自国内天气接口（vvhan），不可用时自动切换备用源；定位仅用于获取本地天气。</Text>
     </ScrollView>
   );
 }

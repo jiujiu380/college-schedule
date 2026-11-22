@@ -31,7 +31,7 @@ export default function ImportScreen() {
   const webRef = useRef<SchoolWebViewHandle>(null);
 
   const [tab, setTab] = useState<Tab>("web");
-  const [url, setUrl] = useState("https://zyjwxt.imau.edu.cn/academic/index.jsp");
+  const [url, setUrl] = useState("");
   const [liveUrl, setLiveUrl] = useState(url);
   const [desktop, setDesktop] = useState(false);
   const [webStatus, setWebStatus] = useState("登录后打开课表页，再点「识别导入」");
@@ -240,7 +240,7 @@ export default function ImportScreen() {
             <TextInput
               value={csvText}
               onChangeText={setCsvText}
-              placeholder={"高等数学,周一,1,2,1-16,张伟,致远楼302"}
+              placeholder={"课程名,周一,1,2,1-16,教师,地点"}
               placeholderTextColor={colors.faint}
               multiline
               textAlignVertical="top"
@@ -261,7 +261,7 @@ export default function ImportScreen() {
             <TextInput
               value={jsonText}
               onChangeText={setJsonText}
-              placeholder={'{"name":"课表","courses":[...]}'}
+              placeholder={'{"name":"课表","courses":[]}'}
               placeholderTextColor={colors.faint}
               multiline
               textAlignVertical="top"
@@ -281,6 +281,7 @@ export default function ImportScreen() {
         {pending ? (
           <View style={styles.pendingCard}>
             <Text style={styles.pendingTitle}>已识别 {pending.courses.length} 门课程</Text>
+            <TextInput value={pending.name} onChangeText={(name) => setPending({ ...pending, name })} placeholder="课表名称" placeholderTextColor={colors.faint} style={styles.pendingNameInput} />
             <Text style={styles.pendingMeta}>
               {pending.periods.length ? `${pending.periods.length} 个节次时间 · ` : ""}
               {conflictCount(pending.courses) > 0 ? `${conflictCount(pending.courses)} 处时间冲突` : "无时间冲突"}
@@ -381,6 +382,7 @@ const makeStyles = (colors: Colors) =>
     error: { fontSize: 11.5, color: colors.danger, marginTop: 10, lineHeight: 17 },
     pendingCard: { marginTop: 14, padding: 14, borderRadius: radius.md, borderWidth: 1, borderColor: colors.infoBorder, backgroundColor: colors.infoBg },
     pendingTitle: { fontSize: 13.5, fontWeight: "600", color: colors.ink },
+    pendingNameInput: { marginTop: 10, height: 40, borderWidth: 1, borderColor: colors.fieldBorder, borderRadius: radius.sm, paddingHorizontal: 10, fontSize: 13, color: colors.ink, backgroundColor: colors.fieldBg },
     pendingMeta: { fontSize: 11.5, color: colors.sub, marginTop: 4 },
     pendingRow: { flexDirection: "row", alignItems: "center", paddingVertical: 9, gap: 8 },
     pendingName: { fontSize: 13, color: colors.ink, fontWeight: "500" },

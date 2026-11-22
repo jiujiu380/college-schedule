@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Course, cellsOfWeek, todayCourses } from "./schedule";
 import { Period, TOTAL_WEEKS } from "./time";
 import { Season, getPeriods, seasonLabel, seasonOf } from "./season";
@@ -16,6 +16,7 @@ import {
 import { StaticMeta } from "./static-timetable";
 import { ThemePreset, presetById } from "./theme-presets";
 import { writeWidgetData } from "./widget-data";
+import { uploadCloud } from "./cloud-sync";
 
 export type ScheduleSource = "demo" | "static" | "api";
 
@@ -79,6 +80,19 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (ready) void saveTables({ tables, activeId });
+  }, [tables, activeId, ready]);
+
+  const cloudInit = useRef(false);
+  useEffect(() => {
+    if (!ready) return;
+    if (!cloudInit.current) {
+      cloudInit.current = true;
+      return;
+    }
+    const timer = setTimeout(() => {
+      void uploadCloud(tables, activeId).catch(() => {});
+    }, 5000);
+    return () => clearTimeout(timer);
   }, [tables, activeId, ready]);
 
   useEffect(() => {
