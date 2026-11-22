@@ -111,6 +111,10 @@ function ThemedRoot() {
                 <Stack.Screen name="contact" options={{ ...headerOptions, title: "联系作者" }} />
                 <Stack.Screen name="announcements" options={{ ...headerOptions, title: "公告" }} />
                 <Stack.Screen name="tickets" options={{ ...headerOptions, title: "工单反馈" }} />
+                <Stack.Screen name="memo/index" options={{ ...headerOptions, title: "备忘录" }} />
+                <Stack.Screen name="memo/[id]" options={{ headerShown: false }} />
+                <Stack.Screen name="weather" options={{ ...headerOptions, title: "天气提醒" }} />
+                <Stack.Screen name="calendar" options={{ ...headerOptions, title: "日历" }} />
                 <Stack.Screen name="update" options={{ ...headerOptions, title: "检查更新" }} />
                 <Stack.Screen name="sponsor" options={{ ...headerOptions, title: "赞助支持" }} />
                 <Stack.Screen name="login" options={{ animation: "none" }} />

@@ -2,7 +2,7 @@
   "expo": {
     "name": "知酷课程表",
     "slug": "college-schedule",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "zhiku",
@@ -53,7 +53,13 @@
           "defaultChannel": "class-reminders"
         }
       ],
-      "expo-sharing"
+      "expo-sharing",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "用于获取你所在位置的天气，仅在本机使用。"
+        }
+      ]
     ]
   }
 }

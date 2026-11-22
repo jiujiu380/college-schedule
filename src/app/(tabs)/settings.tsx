@@ -6,6 +6,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScreenStatusBar } from "../../components/ScreenStatusBar";
 import { cancelAllReminders, ensureNotifyPermission, getLeadMinutes, isNotifyEnabled, scheduleClassReminders, setLeadMinutes, setNotifyEnabled } from "../../lib/notifications";
 import { useSchedule } from "../../lib/schedule-store";
+import * as Notifications from "expo-notifications";
+import { ensureChannel } from "../../lib/notifications";
 import { useTheme } from "../../lib/theme-context";
 import { useUpdate } from "../../lib/update-store";
 import { markTourSeen } from "../../components/TourOverlay";
