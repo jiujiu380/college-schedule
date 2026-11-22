@@ -7,6 +7,7 @@ import { CourseEditor } from "../../components/CourseEditor";
 import { ScreenStatusBar } from "../../components/ScreenStatusBar";
 import { currentNow } from "../../lib/clock";
 import { useSchedule } from "../../lib/schedule-store";
+import { weekOfDate } from "../../lib/timetables";
 import { useGlobalRefresh, useRefreshTask } from "../../lib/app-refresh";
 import { writeWidgetData } from "../../lib/widget-data";
 import { Course } from "../../lib/schedule";
@@ -100,6 +101,12 @@ export default function ScheduleScreen() {
     date.setDate(date.getDate() + (week - 1) * 7);
     return date;
   }, [activeTable.startDate, week]);
+
+  const currentWeek = useMemo(() => weekOfDate(activeTable.startDate), [activeTable.startDate]);
+  const isPastCourse = useCallback(
+    (c: Course) => week === currentWeek && (c.weekday < nowWeekday || (c.weekday === nowWeekday && c.endPeriod < (activeGroup ?? 0))),
+    [week, currentWeek, nowWeekday, activeGroup],
+  );
 
   const active = useMemo(() => courses.filter((c) => c.weeks.includes(week)), [courses, week]);
   const offWeek = useMemo(() => courses.filter((c) => !c.weeks.includes(week)), [courses, week]);
@@ -222,6 +229,7 @@ export default function ScheduleScreen() {
                   blocks.map((b) => {
                     const tint = tintFor(preset, b.course.id);
                     const laneW = colW / b.lanes;
+                    const ended = isPastCourse(b.course);
                     return (
                       <Pressable
                         key={b.course.id + "-" + b.lane}
@@ -238,13 +246,13 @@ export default function ScheduleScreen() {
                             backgroundColor: dark ? "#232A38" : tint.bg,
                             borderLeftColor: tint.bar,
                             borderRadius: ui.radius,
-                            opacity: ui.opacity,
+                            opacity: ui.opacity * (ended ? 0.42 : 1),
                           },
                         ]}
                       >
-                        <Text style={[styles.courseName, { color: dark ? colors.ink : tint.fg }]} numberOfLines={3}>{b.course.name}</Text>
-                        {b.course.location ? <Text style={[styles.courseMeta, { color: dark ? colors.sub : tint.fg }]} numberOfLines={1}>{b.course.location}</Text> : null}
-                        {b.course.teacher ? <Text style={[styles.courseMeta, { color: dark ? colors.faint : tint.fg }]} numberOfLines={1}>{b.course.teacher}</Text> : null}
+                        <Text style={[styles.courseName, { color: ended ? colors.faint : dark ? colors.ink : tint.fg }]} numberOfLines={3}>{b.course.name}</Text>
+                        {b.course.location ? <Text style={[styles.courseMeta, { color: ended ? colors.faint : dark ? colors.sub : tint.fg }]} numberOfLines={3}>{b.course.location}</Text> : null}
+                        {b.course.teacher ? <Text style={[styles.courseMeta, { color: ended ? colors.faint : dark ? colors.faint : tint.fg }]} numberOfLines={2}>{b.course.teacher}</Text> : null}
                       </Pressable>
                     );
                   }),
@@ -396,7 +404,7 @@ const makeStyles = (colors: Colors) =>
     conflictDot: { position: "absolute", top: 3, right: 3, width: 5, height: 5, borderRadius: 3, backgroundColor: colors.danger },
     block: { position: "absolute", borderLeftWidth: 2.5, paddingHorizontal: 3, paddingVertical: 3, overflow: "hidden", justifyContent: "center" },
     courseName: { fontSize: 10.5, fontWeight: "700", lineHeight: 13.5 },
-    courseMeta: { fontSize: 8.5, marginTop: 1, lineHeight: 11, opacity: 0.9 },
+    courseMeta: { fontSize: 7.8, marginTop: 1, lineHeight: 10, opacity: 0.9 },
     offWeek: { fontSize: 8.5, marginTop: 1 },
     labelTime: { fontSize: 8, color: colors.faint, marginTop: 2 },
     bubble: { position: "absolute", width: 18, height: 18, borderRadius: 9, backgroundColor: colors.danger, alignItems: "center", justifyContent: "center", zIndex: 5 },

@@ -45,7 +45,7 @@ nav{position:sticky;top:0;z-index:50;background:rgba(247,248,252,.72);backdrop-f
 .nav-links a{transition:color .15s}
 .nav-links a:hover{color:var(--ink)}
 .nav-cta{display:inline-flex;align-items:center;gap:7px;background:var(--ink);color:#fff !important;padding:9px 16px;border-radius:11px;font-weight:600;font-size:13px}
-.hero{position:relative;padding:76px 0 40px}
+.hero{position:relative;padding:44px 0 30px}
 .hero:before{content:"";position:absolute;inset:0;background:
   radial-gradient(50% 45% at 78% 22%,rgba(79,70,229,.12),transparent 70%),
   radial-gradient(40% 40% at 12% 8%,rgba(37,99,235,.10),transparent 70%);
@@ -143,9 +143,10 @@ footer{border-top:1px solid var(--line);background:#fff}
 .foot a:hover{color:var(--ink)}
 .copy{border-top:1px solid var(--line);padding:18px 0;display:flex;justify-content:space-between;gap:16px;font-size:11.5px;color:var(--faint);flex-wrap:wrap}
 @media(max-width:980px){
- h1{font-size:46px;letter-spacing:-2px}
- .hero-grid{grid-template-columns:1fr;gap:30px}
- .stage{order:-1;transform:scale(.92)}
+ h1{font-size:44px;letter-spacing:-2px}
+ .hero{padding:26px 0 14px}
+ .hero-grid{grid-template-columns:1fr;gap:22px}
+ .stage{order:-1;transform:scale(.82);margin:-6px 0 -18px}
  .bento{grid-template-columns:1fr 1fr}
  .bcard.large,.bcard.small{grid-column:span 1}
  .steps,.shots,.news-grid{grid-template-columns:1fr}
@@ -158,7 +159,10 @@ footer{border-top:1px solid var(--line);background:#fff}
  .wrap{padding:0 18px}
  .sec{padding:56px 0}
  .sec-head h2{font-size:30px}
- .device{width:258px}
+ .device{width:248px}
+ .stage{transform:scale(.74);margin:-14px 0 -34px}
+ .hero{padding:18px 0 8px}
+ .actions .btn{flex:1;justify-content:center;padding:14px 16px}
  .cta{padding:32px;border-radius:24px}
  .cta h2{font-size:27px}
  .bento{grid-template-columns:1fr}

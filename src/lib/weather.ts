@@ -67,6 +67,61 @@ export async function cancelWeatherReminder(): Promise<void> {
   }
 }
 
+async function fetchCmaWeather(city: string | null): Promise<WeatherNow | null> {
+  if (!city) return null;
+  const q = city.replace(/(特别行政区|自治州|自治县|地区|盟|市|县|区)$/g, "").trim() || city;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 12000);
+  try {
+    const acRes = await fetch("https://weather.cma.cn/api/autocomplete?q=" + encodeURIComponent(q), { signal: controller.signal });
+    if (!acRes.ok) return null;
+    const ac = await acRes.json();
+    const first = Array.isArray(ac?.data) ? String(ac.data[0] ?? "") : "";
+    const stationId = first.split("|")[0];
+    if (!stationId) return null;
+
+    const res = await fetch("https://weather.cma.cn/api/weather/view?stationid=" + encodeURIComponent(stationId), { signal: controller.signal });
+    if (!res.ok) return null;
+    const json = await res.json();
+    const data = json?.data;
+    const loc = data?.location;
+    const now = data?.now;
+    if (!loc?.name || !now) return null;
+
+    const temp = Math.round(Number(now.temperature ?? 0));
+    const label = String(data?.daily?.[0]?.dayText ?? "未知");
+    const days: WeatherDay[] = (Array.isArray(data?.daily) ? data.daily : []).slice(0, 3).map((d: any) => {
+      const dayText = String(d.dayText ?? "");
+      const rainy = /雨|雪|雷/.test(dayText);
+      return {
+        date: String(d.date ?? "").replace(/\//g, "-"),
+        code: Number(d.dayCode ?? 0),
+        label: dayText || "未知",
+        min: Math.round(Number(d.low ?? 0)),
+        max: Math.round(Number(d.high ?? 0)),
+        rain: rainy ? 60 : 0,
+      };
+    });
+    const todayText = String(data?.daily?.[0]?.dayText ?? "");
+    return {
+      city: String(loc.name),
+      temp,
+      feels: Math.round(Number(now.feelst ?? temp)),
+      humidity: Math.round(Number(now.humidity ?? 0)),
+      wind: Math.round(Number(now.windSpeed ?? 0) * 3.6),
+      code: Number(data?.daily?.[0]?.dayCode ?? 0),
+      label,
+      rainAlert: /雨/.test(todayText) ? "今天有雨，出门记得带伞" : /雪/.test(todayText) ? "今天有雪，注意保暖防滑" : null,
+      days,
+      updatedAt: Date.now(),
+    };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function fetchDomesticWeather(city: string | null): Promise<WeatherNow | null> {
   if (!city) return null;
   const controller = new AbortController();
@@ -130,6 +185,9 @@ export async function loadWeather(): Promise<WeatherNow> {
     }
     if (city) await setWeatherCity(city);
   }
+
+  const cma = await fetchCmaWeather(city);
+  if (cma) return cma;
 
   const domestic = await fetchDomesticWeather(city);
   if (domestic) return domestic;

@@ -109,7 +109,7 @@ export default function WeatherScreen() {
         </View>
       </View>
 
-      <Text style={styles.footer}>天气数据来自国内天气接口（vvhan），不可用时自动切换备用源；定位仅用于获取本地天气。</Text>
+      <Text style={styles.footer}>天气数据来自中央气象台（weather.cma.cn），不可用时自动切换备用源；定位仅用于获取本地天气。</Text>
     </ScrollView>
   );
 }
