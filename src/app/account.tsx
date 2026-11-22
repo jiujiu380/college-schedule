@@ -7,10 +7,10 @@ import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Tex
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CaptchaModal } from "../components/CaptchaModal";
 import { ScreenStatusBar } from "../components/ScreenStatusBar";
-import { AccountUser, CaptchaPayload, getCachedAccount, loginAccount, loginWithEmail, logoutAccount, refreshAccount, registerAccount, sendEmailCode, updateProfile } from "../lib/account";
-import { fetchSiteInfo, getSiteBase } from "../lib/site-api";
+import { AccountUser, CaptchaPayload, getCachedAccount, loginAccount, logoutAccount, refreshAccount, registerAccount, updateProfile } from "../lib/account";
 import { applyCloudData, downloadCloud, uploadCloud } from "../lib/cloud-sync";
 import { useSchedule } from "../lib/schedule-store";
+import { fetchSiteInfo, getSiteBase } from "../lib/site-api";
 import { useTheme } from "../lib/theme-context";
 import { Colors, radius } from "../theme";
 
@@ -20,31 +20,28 @@ export default function AccountScreen() {
   const insets = useSafeAreaInsets();
   const { colors, scheme } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  const { tables, activeId, restore } = useSchedule();
+
   const [user, setUser] = useState<AccountUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState<"login" | "register">("login");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
-  const [email, setEmail] = useState("");
   const [qq, setQq] = useState("");
   const [wechat, setWechat] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [agree, setAgree] = useState(false);
   const [captchaVisible, setCaptchaVisible] = useState(false);
   const [pendingAction, setPendingAction] = useState<null | ((cap?: CaptchaPayload) => Promise<void>)>(null);
-  const [syncing, setSyncing] = useState(false);
-  const [agree, setAgree] = useState(false);
+
   const [nickname, setNickname] = useState("");
   const [avatarBase64, setAvatarBase64] = useState<string | undefined>();
   const [avatarLocal, setAvatarLocal] = useState<string | undefined>();
   const [avatarUri, setAvatarUri] = useState<string | undefined>();
   const [saving, setSaving] = useState(false);
-  const [loginMode, setLoginMode] = useState<"password" | "email">("password");
-  const [emailCode, setEmailCode] = useState("");
-  const [countdown, setCountdown] = useState(0);
-  const [smsSending, setSmsSending] = useState(false);
-  const { tables, activeId, restore } = useSchedule();
+  const [syncing, setSyncing] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -58,12 +55,6 @@ export default function AccountScreen() {
   useFocusEffect(useCallback(() => { void load(); }, [load]));
 
   useEffect(() => {
-    if (countdown <= 0) return;
-    const timer = setTimeout(() => setCountdown((c) => c - 1), 1000);
-    return () => clearTimeout(timer);
-  }, [countdown]);
-
-  useEffect(() => {
     if (!user) return;
     setNickname(user.nickname || user.username);
     setAvatarLocal(undefined);
@@ -75,89 +66,12 @@ export default function AccountScreen() {
     }
   }, [user]);
 
-  const pickAvatar = async () => {
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) {
-      Alert.alert("没有相册权限", "请在系统设置中允许访问照片。");
-      return;
-    }
-    const res = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images"],
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.6,
-      base64: true,
-    });
-    if (res.canceled) return;
-    const asset = res.assets[0];
-    setAvatarLocal(asset.uri);
-    if (asset.base64) {
-      const mime = asset.mimeType || "image/jpeg";
-      setAvatarBase64("data:" + mime + ";base64," + asset.base64);
-    }
-  };
-
-  const sendCode = async (scene: "register" | "login" | "reset") => {
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-      setError("请输入正确的邮箱");
-      return;
-    }
-    setSmsSending(true);
-    setError("");
-    try {
-      await sendEmailCode(email.trim(), scene);
-      setCountdown(60);
-      Alert.alert("验证码已发送", "请查收邮件（含垃圾箱），10 分钟内有效。");
-    } catch (e) {
-      setError(String(e instanceof Error ? e.message : e));
-    } finally {
-      setSmsSending(false);
-    }
-  };
-
-  const submitEmailLogin = async () => {
-    if (!email.trim() || !emailCode.trim()) {
-      setError("请填写邮箱和验证码");
-      return;
-    }
-    setBusy(true);
-    setError("");
-    try {
-      const u = await loginWithEmail(email.trim(), emailCode.trim());
-      setUser(u);
-      if (gate) router.replace("/home");
-    } catch (e) {
-      setError(String(e instanceof Error ? e.message : e));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const saveProfile = async () => {
-    if (!nickname.trim()) {
-      Alert.alert("昵称不能为空");
-      return;
-    }
-    setSaving(true);
-    try {
-      const updated = await updateProfile({ nickname: nickname.trim(), avatarBase64 });
-      setUser(updated);
-      setAvatarBase64(undefined);
-      Alert.alert("已保存", "资料已更新。");
-    } catch (e) {
-      Alert.alert("保存失败", String(e instanceof Error ? e.message : e));
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const begin = async (action: (cap?: CaptchaPayload) => Promise<void>) => {
     setError("");
     setBusy(true);
     try {
       const info = await fetchSiteInfo().catch(() => null);
-      const enabled = !!info?.captcha?.enabled;
-      if (enabled) {
+      if (info?.captcha?.enabled) {
         setPendingAction(() => action);
         setCaptchaVisible(true);
         setBusy(false);
@@ -176,11 +90,7 @@ export default function AccountScreen() {
         const u = await loginAccount(username.trim(), password, cap);
         setUser(u);
         setPassword("");
-        if (gate) {
-          router.replace("/home");
-        } else {
-          Alert.alert("登录成功", "欢迎回来，" + u.username);
-        }
+        if (gate) router.replace("/home");
       } catch (e) {
         setError(String(e instanceof Error ? e.message : e));
       } finally {
@@ -201,37 +111,23 @@ export default function AccountScreen() {
       setError("两次输入的密码不一致");
       return;
     }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-      setError("请填写正确的邮箱");
-      return;
-    }
-    if (!emailCode.trim()) {
-      setError("请填写邮箱验证码");
-      return;
-    }
     if (!agree) {
       setError("请先阅读并勾选同意相关协议");
       return;
     }
     void begin(async (cap) => {
       try {
-        const registered = await registerAccount({
+        const u = await registerAccount({
           username: username.trim(),
           password,
-          email: email.trim(),
           qq: qq.trim(),
           wechat: wechat.trim(),
-          emailCode: emailCode.trim(),
           captcha: cap,
         });
-        setUser(registered);
+        setUser(u);
         setPassword("");
         setConfirm("");
-        if (gate) {
-          router.replace("/home");
-        } else {
-          Alert.alert("注册成功", "账号已创建并自动登录。");
-        }
+        if (gate) router.replace("/home");
       } catch (e) {
         setError(String(e instanceof Error ? e.message : e));
       } finally {
@@ -240,9 +136,35 @@ export default function AccountScreen() {
     });
   };
 
-  const openForgot = async () => {
-    const base = await getSiteBase();
-    Linking.openURL(base + "/forgot.php").catch(() => Alert.alert("无法打开", "请访问 " + base + "/forgot.php"));
+  const pickAvatar = async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert("没有相册权限", "请在系统设置中允许访问照片。");
+      return;
+    }
+    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], allowsEditing: true, aspect: [1, 1], quality: 0.6, base64: true });
+    if (res.canceled) return;
+    const asset = res.assets[0];
+    setAvatarLocal(asset.uri);
+    if (asset.base64) setAvatarBase64("data:" + (asset.mimeType || "image/jpeg") + ";base64," + asset.base64);
+  };
+
+  const saveProfile = async () => {
+    if (!nickname.trim()) {
+      Alert.alert("昵称不能为空");
+      return;
+    }
+    setSaving(true);
+    try {
+      const updated = await updateProfile({ nickname: nickname.trim(), avatarBase64 });
+      setUser(updated);
+      setAvatarBase64(undefined);
+      Alert.alert("已保存", "资料已更新。");
+    } catch (e) {
+      Alert.alert("保存失败", String(e instanceof Error ? e.message : e));
+    } finally {
+      setSaving(false);
+    }
   };
 
   const syncUp = async () => {
@@ -280,6 +202,11 @@ export default function AccountScreen() {
     }
   };
 
+  const openForgot = async () => {
+    const base = await getSiteBase();
+    Linking.openURL(base + "/forgot.php").catch(() => Alert.alert("无法打开", base + "/forgot.php"));
+  };
+
   const logout = () => {
     Alert.alert("退出登录", "确定退出当前账号？", [
       { text: "取消", style: "cancel" },
@@ -292,7 +219,7 @@ export default function AccountScreen() {
   }
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 28 }} showsVerticalScrollIndicator={false}>
+    <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ padding: 18, paddingBottom: insets.bottom + 30 }} showsVerticalScrollIndicator={false}>
       <ScreenStatusBar style={scheme === "dark" ? "light" : "dark"} />
 
       {user ? (
@@ -306,28 +233,27 @@ export default function AccountScreen() {
               )}
               <View style={styles.cameraBadge}><Ionicons name="camera" size={12} color="#FFFFFF" /></View>
             </Pressable>
-            <Text style={styles.avatarHint}>点击头像更换（昵称会显示在 App 内）</Text>
+            <Text style={styles.avatarHint}>点击头像更换</Text>
 
             <Text style={styles.label}>昵称</Text>
             <TextInput value={nickname} onChangeText={setNickname} placeholder="最多 20 个字" placeholderTextColor={colors.faint} style={styles.input} maxLength={20} />
 
             <View style={styles.infoList}>
               <View style={styles.infoRow}><Text style={styles.infoLabel}>用户名</Text><Text style={styles.infoValue}>{user.username}（不可修改）</Text></View>
-              <View style={styles.infoRow}><Text style={styles.infoLabel}>邮箱</Text><Text style={styles.infoValue}>{user.email || "—"}</Text></View>
               <View style={styles.infoRow}><Text style={styles.infoLabel}>QQ</Text><Text style={styles.infoValue}>{user.qq || "—"}</Text></View>
               <View style={styles.infoRow}><Text style={styles.infoLabel}>微信</Text><Text style={styles.infoValue}>{user.wechat || "—"}</Text></View>
-              <View style={styles.infoRow}><Text style={styles.infoLabel}>注册时间</Text><Text style={styles.infoValue}>{user.created_at}</Text></View>
             </View>
 
             <Pressable style={[styles.primary, saving && { opacity: 0.6 }]} onPress={saveProfile} disabled={saving}>
               <Text style={styles.primaryText}>{saving ? "保存中…" : "保存资料"}</Text>
             </Pressable>
-            <Pressable style={styles.pwdRow} onPress={() => router.push("/contact")}>
+            <Pressable style={styles.pwdRow} onPress={openForgot}>
               <Ionicons name="lock-closed-outline" size={13} color={colors.faint} />
-              <Text style={styles.pwdText}>修改密码请联系开发者（微信 xbhlkj）</Text>
+              <Text style={styles.pwdText}>修改密码请联系开发者</Text>
               <Ionicons name="chevron-forward" size={12} color={colors.faint} />
             </Pressable>
           </View>
+
           <View style={styles.card}>
             <Text style={styles.syncTitle}>云端同步</Text>
             <Text style={styles.syncSub}>课表、备忘录、日程会保存到官网数据库，换设备可恢复。修改课表后约 5 秒自动上传。</Text>
@@ -339,10 +265,15 @@ export default function AccountScreen() {
             </Pressable>
           </View>
           <Pressable style={styles.ghostBtn} onPress={logout}><Text style={styles.ghostText}>退出登录</Text></Pressable>
-          <Text style={styles.footer}>账号数据保存在官网服务器；课表、备忘录等仍只在本机。</Text>
         </>
       ) : (
         <>
+          <View style={styles.logoWrap}>
+            <Image source={require("../../assets/icon.png")} style={styles.logo} />
+          </View>
+          <Text style={styles.brandTitle}>知酷课程表</Text>
+          <Text style={styles.brandSub}>登录后同步课表与云端数据</Text>
+
           {gate ? <Text style={styles.gateHint}>登录或注册后即可使用全部功能</Text> : null}
 
           <View style={styles.tabs}>
@@ -354,73 +285,33 @@ export default function AccountScreen() {
           </View>
 
           <View style={styles.card}>
-            {mode === "login" ? (
-              <View style={styles.loginTabs}>
-                <Pressable onPress={() => setLoginMode("password")} style={[styles.loginTab, loginMode === "password" && styles.loginTabActive]}>
-                  <Text style={[styles.loginTabText, loginMode === "password" && { color: colors.brand, fontWeight: "600" }]}>密码登录</Text>
-                </Pressable>
-                <Pressable onPress={() => setLoginMode("email")} style={[styles.loginTab, loginMode === "email" && styles.loginTabActive]}>
-                  <Text style={[styles.loginTabText, loginMode === "email" && { color: colors.brand, fontWeight: "600" }]}>邮箱验证码登录</Text>
-                </Pressable>
-              </View>
-            ) : null}
-
-            {mode === "login" && loginMode === "email" ? (
-              <>
-                <Text style={styles.label}>邮箱</Text>
-                <TextInput value={email} onChangeText={setEmail} placeholder="注册时使用的邮箱" placeholderTextColor={colors.faint} style={styles.input} autoCapitalize="none" keyboardType="email-address" />
-                <Text style={styles.label}>邮箱验证码</Text>
-                <View style={styles.codeRow}>
-                  <TextInput value={emailCode} onChangeText={setEmailCode} placeholder="6 位验证码" placeholderTextColor={colors.faint} style={[styles.input, { flex: 1 }]} keyboardType="number-pad" maxLength={6} />
-                  <Pressable style={[styles.codeBtn, (countdown > 0 || smsSending) && { opacity: 0.5 }]} onPress={() => sendCode("login")} disabled={countdown > 0 || smsSending}>
-                    <Text style={styles.codeBtnText}>{countdown > 0 ? countdown + "s" : smsSending ? "发送中" : "获取验证码"}</Text>
-                  </Pressable>
-                </View>
-                {error ? <Text style={styles.error}>{error}</Text> : null}
-                <Pressable style={[styles.primary, busy && { opacity: 0.6 }]} onPress={submitEmailLogin} disabled={busy}>
-                  <Text style={styles.primaryText}>{busy ? "登录中…" : "登录"}</Text>
-                </Pressable>
-              </>
-            ) : (
-              <>
-                <Text style={styles.label}>用户名</Text>
+            <Text style={styles.label}>用户名</Text>
             <TextInput value={username} onChangeText={setUsername} placeholder="3-24 位，字母/数字/下划线/中文" placeholderTextColor={colors.faint} style={styles.input} autoCapitalize="none" />
 
-                <Text style={styles.label}>密码</Text>
-                <TextInput value={password} onChangeText={setPassword} placeholder="至少 6 位" placeholderTextColor={colors.faint} secureTextEntry style={styles.input} />
-              </>
-            )}
+            <Text style={styles.label}>密码</Text>
+            <TextInput value={password} onChangeText={setPassword} placeholder="至少 6 位" placeholderTextColor={colors.faint} secureTextEntry style={styles.input} />
 
             {mode === "register" ? (
               <>
                 <Text style={styles.label}>确认密码</Text>
                 <TextInput value={confirm} onChangeText={setConfirm} placeholder="再输入一次" placeholderTextColor={colors.faint} secureTextEntry style={styles.input} />
 
-                <Text style={styles.label}>邮箱</Text>
-                <TextInput value={email} onChangeText={setEmail} placeholder="name@example.com" placeholderTextColor={colors.faint} style={styles.input} autoCapitalize="none" keyboardType="email-address" />
-                <Text style={styles.label}>邮箱验证码</Text>
-                <View style={styles.codeRow}>
-                  <TextInput value={emailCode} onChangeText={setEmailCode} placeholder="6 位验证码" placeholderTextColor={colors.faint} style={[styles.input, { flex: 1 }]} keyboardType="number-pad" maxLength={6} />
-                  <Pressable style={[styles.codeBtn, (countdown > 0 || smsSending) && { opacity: 0.5 }]} onPress={() => sendCode("register")} disabled={countdown > 0 || smsSending}>
-                    <Text style={styles.codeBtnText}>{countdown > 0 ? countdown + "s" : smsSending ? "发送中" : "获取验证码"}</Text>
-                  </Pressable>
-                </View>
-
-                <Text style={styles.section}>其他联系方式（选填）</Text>
-                <Text style={styles.label}>QQ</Text>
-                <TextInput value={qq} onChangeText={setQq} placeholder="选填" placeholderTextColor={colors.faint} style={styles.input} keyboardType="number-pad" />
-                <Text style={styles.label}>微信</Text>
-                <TextInput value={wechat} onChangeText={setWechat} placeholder="选填" placeholderTextColor={colors.faint} style={styles.input} autoCapitalize="none" />
+                <Text style={styles.label}>QQ（选填）</Text>
+                <TextInput value={qq} onChangeText={setQq} placeholder="方便联系" placeholderTextColor={colors.faint} style={styles.input} keyboardType="number-pad" />
+                <Text style={styles.label}>微信（选填）</Text>
+                <TextInput value={wechat} onChangeText={setWechat} placeholder="方便联系" placeholderTextColor={colors.faint} style={styles.input} autoCapitalize="none" />
               </>
             ) : null}
 
+            {error ? <Text style={styles.error}>{error}</Text> : null}
+
+            <Pressable style={[styles.primary, busy && { opacity: 0.6 }]} onPress={mode === "login" ? submitLogin : submitRegister} disabled={busy}>
+              <Text style={styles.primaryText}>{busy ? "请稍候…" : mode === "login" ? "登录" : "注册并登录"}</Text>
+            </Pressable>
+
             {mode === "register" ? (
               <View style={styles.agreeRow}>
-                <Pressable
-                  style={[styles.checkbox, agree && { backgroundColor: colors.brand, borderColor: colors.brand }]}
-                  onPress={() => setAgree((v) => !v)}
-                  hitSlop={6}
-                >
+                <Pressable style={[styles.checkbox, agree && { backgroundColor: colors.brand, borderColor: colors.brand }]} onPress={() => setAgree((v) => !v)} hitSlop={6}>
                   {agree ? <Ionicons name="checkmark" size={13} color="#FFFFFF" /> : null}
                 </Pressable>
                 <Text style={styles.agreeText}>
@@ -432,27 +323,13 @@ export default function AccountScreen() {
               </View>
             ) : null}
 
-            {error ? <Text style={styles.error}>{error}</Text> : null}
-
-            {!(mode === "login" && loginMode === "email") ? (
-              <Pressable style={[styles.primary, busy && { opacity: 0.6 }]} onPress={mode === "login" ? submitLogin : submitRegister} disabled={busy}>
-                <Text style={styles.primaryText}>{busy ? "请稍候…" : mode === "login" ? "登录" : "注册并登录"}</Text>
+            {mode === "login" ? (
+              <Pressable onPress={() => router.push("/forgot-password")} style={styles.forgot}>
+                <Text style={styles.forgotText}>忘记密码？联系开发者修改</Text>
               </Pressable>
             ) : null}
-
-            {mode === "login" ? (
-              <>
-                <Pressable onPress={() => router.push("/reset-password")} style={styles.forgot}>
-                  <Text style={styles.forgotText}>忘记密码？用邮箱验证码重置</Text>
-                </Pressable>
-                <Pressable onPress={openForgot} style={styles.forgot}>
-                  <Text style={[styles.forgotText, { color: colors.faint }]}>或联系客服追回密码</Text>
-                </Pressable>
-              </>
-            ) : null}
           </View>
-
-          <Text style={styles.footer}>注册、邮箱验证码登录需通过邮箱验证；账号数据仅用于官网服务。</Text>
+          <Text style={styles.footer}>登录使用用户名、密码和极验验证；账号数据仅用于官网服务。</Text>
         </>
       )}
 
@@ -472,48 +349,42 @@ export default function AccountScreen() {
 
 const makeStyles = (colors: Colors) =>
   StyleSheet.create({
-    card: { backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, padding: 18 },
-    avatar: { width: 56, height: 56, borderRadius: 28, backgroundColor: colors.brandSoft, alignItems: "center", justifyContent: "center", alignSelf: "center" },
-    avatarText: { fontSize: 22, fontWeight: "700", color: colors.brand },
+    logoWrap: { alignItems: "center", marginTop: 6 },
+    logo: { width: 84, height: 84, borderRadius: 22, shadowColor: "#0B1220", shadowOpacity: 0.12, shadowRadius: 18, shadowOffset: { width: 0, height: 8 } },
+    brandTitle: { fontSize: 20, fontWeight: "700", color: colors.ink, textAlign: "center", marginTop: 14 },
+    brandSub: { fontSize: 12, color: colors.faint, textAlign: "center", marginTop: 6, marginBottom: 16 },
+    gateHint: { fontSize: 12, color: colors.sub, textAlign: "center", marginBottom: 12 },
+    card: { backgroundColor: colors.surface, borderRadius: 20, borderWidth: 1, borderColor: colors.line, padding: 20, marginBottom: 12 },
+    tabs: { flexDirection: "row", backgroundColor: colors.chipBg, borderRadius: 12, padding: 3, marginBottom: 14 },
+    tab: { flex: 1, height: 38, alignItems: "center", justifyContent: "center", borderRadius: 9 },
+    tabActive: { backgroundColor: colors.surface },
+    tabText: { fontSize: 13.5, color: colors.sub },
+    label: { fontSize: 11.5, color: colors.sub, marginTop: 12, marginBottom: 6 },
+    input: { height: 46, borderWidth: 1, borderColor: colors.fieldBorder, borderRadius: 12, paddingHorizontal: 13, fontSize: 14, color: colors.ink, backgroundColor: colors.fieldBg },
+    error: { fontSize: 12, color: colors.danger, marginTop: 12, lineHeight: 18 },
+    primary: { marginTop: 18, height: 48, borderRadius: 14, backgroundColor: colors.brand, alignItems: "center", justifyContent: "center" },
+    primaryText: { color: "#FFFFFF", fontSize: 15, fontWeight: "600" },
+    ghostBtn: { marginTop: 12, height: 46, borderRadius: 14, borderWidth: 1, borderColor: colors.fieldBorder, alignItems: "center", justifyContent: "center" },
+    ghostText: { fontSize: 14, color: colors.ink },
+    agreeRow: { flexDirection: "row", alignItems: "flex-start", gap: 8, marginTop: 16 },
+    checkbox: { width: 18, height: 18, borderRadius: 5, borderWidth: 1, borderColor: colors.fieldBorder, alignItems: "center", justifyContent: "center", marginTop: 1 },
+    agreeText: { flex: 1, fontSize: 11.5, color: colors.sub, lineHeight: 19 },
+    link: { color: colors.brand },
+    forgot: { marginTop: 14, alignItems: "center" },
+    forgotText: { fontSize: 12, color: colors.brand },
+    footer: { fontSize: 10.5, color: colors.faint, textAlign: "center", marginTop: 16, lineHeight: 17 },
     avatarWrap: { alignSelf: "center", marginTop: 2 },
+    avatar: { width: 76, height: 76, borderRadius: 38, backgroundColor: colors.brandSoft, alignItems: "center", justifyContent: "center" },
     avatarImg: { width: 76, height: 76, borderRadius: 38, backgroundColor: colors.chipBg },
+    avatarText: { fontSize: 22, fontWeight: "700", color: colors.brand },
     cameraBadge: { position: "absolute", right: -2, bottom: -2, width: 24, height: 24, borderRadius: 12, backgroundColor: colors.brand, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: colors.surface },
     avatarHint: { fontSize: 10.5, color: colors.faint, textAlign: "center", marginTop: 8 },
-    pwdRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, marginTop: 14 },
-    pwdText: { fontSize: 11, color: colors.faint },
-    name: { fontSize: 18, fontWeight: "700", color: colors.ink, textAlign: "center", marginTop: 10 },
-    meta: { fontSize: 11, color: colors.faint, textAlign: "center", marginTop: 4 },
     infoList: { marginTop: 16, borderTopWidth: 1, borderTopColor: colors.line },
     infoRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.line },
     infoLabel: { fontSize: 12, color: colors.faint },
     infoValue: { fontSize: 13, color: colors.ink },
-    tabs: { flexDirection: "row", backgroundColor: colors.chipBg, borderRadius: radius.sm, padding: 3, marginBottom: 14 },
-    tab: { flex: 1, height: 38, alignItems: "center", justifyContent: "center", borderRadius: 6 },
-    tabActive: { backgroundColor: colors.surface },
-    tabText: { fontSize: 13.5, color: colors.sub },
-    label: { fontSize: 11.5, color: colors.sub, marginTop: 12, marginBottom: 6 },
-    input: { height: 44, borderWidth: 1, borderColor: colors.fieldBorder, borderRadius: radius.sm, paddingHorizontal: 12, fontSize: 14, color: colors.ink, backgroundColor: colors.fieldBg },
-    section: { fontSize: 12, fontWeight: "600", color: colors.ink, marginTop: 18 },
-    error: { fontSize: 12, color: colors.danger, marginTop: 12, lineHeight: 18 },
-    primary: { marginTop: 18, height: 46, borderRadius: radius.sm, backgroundColor: colors.brand, alignItems: "center", justifyContent: "center" },
-    primaryText: { color: "#FFFFFF", fontSize: 15, fontWeight: "600" },
-    ghostBtn: { marginTop: 14, height: 46, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.fieldBorder, alignItems: "center", justifyContent: "center" },
-    ghostText: { fontSize: 14, color: colors.ink },
-    forgot: { marginTop: 14, alignItems: "center" },
-    forgotText: { fontSize: 12, color: colors.brand },
-    footer: { fontSize: 10.5, color: colors.faint, textAlign: "center", marginTop: 18, lineHeight: 17 },
-    gateHint: { fontSize: 12.5, color: colors.sub, textAlign: "center", marginBottom: 14, lineHeight: 19 },
-    loginTabs: { flexDirection: "row", backgroundColor: colors.chipBg, borderRadius: radius.sm, padding: 2, gap: 2, marginBottom: 14 },
-    loginTab: { flex: 1, height: 34, alignItems: "center", justifyContent: "center", borderRadius: 6 },
-    loginTabActive: { backgroundColor: colors.surface },
-    loginTabText: { fontSize: 12.5, color: colors.sub },
-    codeRow: { flexDirection: "row", gap: 8, alignItems: "center" },
-    codeBtn: { height: 44, paddingHorizontal: 12, borderRadius: radius.sm, backgroundColor: colors.brandSoft, alignItems: "center", justifyContent: "center" },
-    codeBtnText: { fontSize: 12, color: colors.brand, fontWeight: "600" },
-    agreeRow: { flexDirection: "row", alignItems: "flex-start", gap: 8, marginTop: 16 },
-    checkbox: { width: 18, height: 18, borderRadius: 4, borderWidth: 1, borderColor: colors.fieldBorder, alignItems: "center", justifyContent: "center", marginTop: 1 },
-    agreeText: { flex: 1, fontSize: 11.5, color: colors.sub, lineHeight: 19 },
-    link: { color: colors.brand },
+    pwdRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, marginTop: 14 },
+    pwdText: { fontSize: 11, color: colors.faint },
     syncTitle: { fontSize: 14, fontWeight: "600", color: colors.ink },
-    syncSub: { fontSize: 11.5, color: colors.faint, lineHeight: 18, marginTop: 8, marginBottom: 14 },
+    syncSub: { fontSize: 11.5, color: colors.faint, lineHeight: 18, marginTop: 8, marginBottom: 4 },
   });

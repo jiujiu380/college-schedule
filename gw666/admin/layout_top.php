@@ -7,8 +7,6 @@ $nav = [
   'announcements.php' => '公告管理',
   'update.php' => '版本更新',
   'users.php' => '用户管理',
-  'sms_test.php' => '短信测试',
-  'email_test.php' => '邮件测试',
   'tickets.php' => '工单',
 ];
 ?>

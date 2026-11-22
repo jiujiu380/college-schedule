@@ -94,20 +94,21 @@ try {
       $qq = trim((string)($input['qq'] ?? ''));
       $wechat = trim((string)($input['wechat'] ?? ''));
       $email = trim((string)($input['email'] ?? ''));
-      $emailCode = trim((string)($input['email_code'] ?? ''));
-      if (!email_verification_enabled()) json_out(['error' => '管理员尚未配置 SMTP，暂时无法注册'], 503);
-      if (!filter_var($email, FILTER_VALIDATE_EMAIL)) json_out(['error' => '请输入正确的邮箱'], 422);
+      if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) json_out(['error' => '邮箱格式不正确'], 422);
       if (strlen($u) < 3 || strlen($u) > 24 || !preg_match('/^[A-Za-z0-9_\x{4e00}-\x{9fa5}]+$/u', $u)) {
         json_out(['error' => '用户名需 3-24 位，仅限字母、数字、下划线或中文'], 422);
       }
       if (strlen($p) < 6) json_out(['error' => '密码至少 6 位'], 422);
       $cap = verify_captcha($input['captcha'] ?? []);
       if (!$cap['ok']) json_out(['error' => $cap['error']], 422);
-      $exists = db()->prepare('SELECT id FROM users WHERE username = ? OR email = ?');
-      $exists->execute([$u, $email]);
-      if ($exists->fetch()) json_out(['error' => '用户名或邮箱已被注册'], 409);
-      $mail = email_verify_code($email, $emailCode, 'register');
-      if (!$mail['ok']) json_out(['error' => $mail['error']], 422);
+      if ($email !== '') {
+        $exists = db()->prepare('SELECT id FROM users WHERE username = ? OR email = ?');
+        $exists->execute([$u, $email]);
+      } else {
+        $exists = db()->prepare('SELECT id FROM users WHERE username = ?');
+        $exists->execute([$u]);
+      }
+      if ($exists->fetch()) json_out(['error' => '用户名已被注册'], 409);
       $st = db()->prepare('INSERT INTO users (username, password_hash, email, qq, wechat, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, "active", NOW(), NOW())');
       $st->execute([$u, password_hash($p, PASSWORD_DEFAULT), $email, $qq, $wechat]);
       $id = (int)db()->lastInsertId();
