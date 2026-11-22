@@ -1,0 +1,241 @@
+import { Ionicons } from "@expo/vector-icons";
+import * as Linking from "expo-linking";
+import { useFocusEffect, useRouter } from "expo-router";
+import React, { useCallback, useMemo, useState } from "react";
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { CaptchaModal } from "../components/CaptchaModal";
+import { ScreenStatusBar } from "../components/ScreenStatusBar";
+import { AccountUser, CaptchaPayload, getCachedAccount, loginAccount, logoutAccount, refreshAccount, registerAccount } from "../lib/account";
+import { fetchSiteInfo, getSiteBase } from "../lib/site-api";
+import { useTheme } from "../lib/theme-context";
+import { Colors, radius } from "../theme";
+
+export default function AccountScreen() {
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { colors, scheme } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const [user, setUser] = useState<AccountUser | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [mode, setMode] = useState<"login" | "register">("login");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [email, setEmail] = useState("");
+  const [qq, setQq] = useState("");
+  const [wechat, setWechat] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [captchaVisible, setCaptchaVisible] = useState(false);
+  const [pendingAction, setPendingAction] = useState<null | ((cap?: CaptchaPayload) => Promise<void>)>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const cached = await getCachedAccount();
+    setUser(cached);
+    const fresh = await refreshAccount().catch(() => null);
+    if (fresh) setUser(fresh);
+    setLoading(false);
+  }, []);
+
+  useFocusEffect(useCallback(() => { void load(); }, [load]));
+
+  const begin = async (action: (cap?: CaptchaPayload) => Promise<void>) => {
+    setError("");
+    setBusy(true);
+    try {
+      const info = await fetchSiteInfo().catch(() => null);
+      const enabled = !!info?.captcha?.enabled;
+      if (enabled) {
+        setPendingAction(() => action);
+        setCaptchaVisible(true);
+        setBusy(false);
+      } else {
+        await action(undefined);
+      }
+    } catch (e) {
+      setError(String(e instanceof Error ? e.message : e));
+      setBusy(false);
+    }
+  };
+
+  const submitLogin = () =>
+    begin(async (cap) => {
+      try {
+        const u = await loginAccount(username.trim(), password, cap);
+        setUser(u);
+        setPassword("");
+        Alert.alert("登录成功", "欢迎回来，" + u.username);
+      } catch (e) {
+        setError(String(e instanceof Error ? e.message : e));
+      } finally {
+        setBusy(false);
+      }
+    });
+
+  const submitRegister = () => {
+    if (!username.trim() || !password) {
+      setError("请填写用户名和密码");
+      return;
+    }
+    if (password.length < 6) {
+      setError("密码至少 6 位");
+      return;
+    }
+    if (password !== confirm) {
+      setError("两次输入的密码不一致");
+      return;
+    }
+    if (!email.trim() && !qq.trim() && !wechat.trim()) {
+      setError("请至少填写一种联系方式");
+      return;
+    }
+    void begin(async (cap) => {
+      try {
+        await registerAccount({
+          username: username.trim(),
+          password,
+          email: email.trim(),
+          qq: qq.trim(),
+          wechat: wechat.trim(),
+          captcha: cap,
+        });
+        const u = await getCachedAccount();
+        setUser(u);
+        setPassword("");
+        setConfirm("");
+        Alert.alert("注册成功", "账号已创建并自动登录。");
+      } catch (e) {
+        setError(String(e instanceof Error ? e.message : e));
+      } finally {
+        setBusy(false);
+      }
+    });
+  };
+
+  const openForgot = async () => {
+    const base = await getSiteBase();
+    Linking.openURL(base + "/forgot.php").catch(() => Alert.alert("无法打开", "请访问 " + base + "/forgot.php"));
+  };
+
+  const logout = () => {
+    Alert.alert("退出登录", "确定退出当前账号？", [
+      { text: "取消", style: "cancel" },
+      { text: "退出", style: "destructive", onPress: async () => { await logoutAccount(); setUser(null); } },
+    ]);
+  };
+
+  if (loading) {
+    return <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.bg }}><ActivityIndicator color={colors.brand} /></View>;
+  }
+
+  return (
+    <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 28 }} showsVerticalScrollIndicator={false}>
+      <ScreenStatusBar style={scheme === "dark" ? "light" : "dark"} />
+
+      {user ? (
+        <>
+          <View style={styles.card}>
+            <View style={styles.avatar}><Text style={styles.avatarText}>{user.username.slice(0, 1).toUpperCase()}</Text></View>
+            <Text style={styles.name}>{user.username}</Text>
+            <Text style={styles.meta}>注册于 {user.created_at}{user.last_login ? " · 最近登录 " + user.last_login : ""}</Text>
+            <View style={styles.infoList}>
+              <View style={styles.infoRow}><Text style={styles.infoLabel}>邮箱</Text><Text style={styles.infoValue}>{user.email || "—"}</Text></View>
+              <View style={styles.infoRow}><Text style={styles.infoLabel}>QQ</Text><Text style={styles.infoValue}>{user.qq || "—"}</Text></View>
+              <View style={styles.infoRow}><Text style={styles.infoLabel}>微信</Text><Text style={styles.infoValue}>{user.wechat || "—"}</Text></View>
+            </View>
+          </View>
+          <Pressable style={styles.ghostBtn} onPress={logout}><Text style={styles.ghostText}>退出登录</Text></Pressable>
+          <Text style={styles.footer}>账号数据保存在官网服务器；课表、备忘录等仍只在本机。</Text>
+        </>
+      ) : (
+        <>
+          <View style={styles.tabs}>
+            {(["login", "register"] as const).map((m) => (
+              <Pressable key={m} onPress={() => { setMode(m); setError(""); }} style={[styles.tab, mode === m && styles.tabActive]}>
+                <Text style={[styles.tabText, mode === m && { color: colors.brand, fontWeight: "600" }]}>{m === "login" ? "登录" : "注册"}</Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <View style={styles.card}>
+            <Text style={styles.label}>用户名</Text>
+            <TextInput value={username} onChangeText={setUsername} placeholder="3-24 位，字母/数字/下划线/中文" placeholderTextColor={colors.faint} style={styles.input} autoCapitalize="none" />
+
+            <Text style={styles.label}>密码</Text>
+            <TextInput value={password} onChangeText={setPassword} placeholder="至少 6 位" placeholderTextColor={colors.faint} secureTextEntry style={styles.input} />
+
+            {mode === "register" ? (
+              <>
+                <Text style={styles.label}>确认密码</Text>
+                <TextInput value={confirm} onChangeText={setConfirm} placeholder="再输入一次" placeholderTextColor={colors.faint} secureTextEntry style={styles.input} />
+
+                <Text style={styles.section}>联系方式（至少填一项）</Text>
+                <Text style={styles.label}>邮箱</Text>
+                <TextInput value={email} onChangeText={setEmail} placeholder="name@example.com" placeholderTextColor={colors.faint} style={styles.input} autoCapitalize="none" keyboardType="email-address" />
+                <Text style={styles.label}>QQ</Text>
+                <TextInput value={qq} onChangeText={setQq} placeholder="选填" placeholderTextColor={colors.faint} style={styles.input} keyboardType="number-pad" />
+                <Text style={styles.label}>微信</Text>
+                <TextInput value={wechat} onChangeText={setWechat} placeholder="选填" placeholderTextColor={colors.faint} style={styles.input} autoCapitalize="none" />
+              </>
+            ) : null}
+
+            {error ? <Text style={styles.error}>{error}</Text> : null}
+
+            <Pressable style={[styles.primary, busy && { opacity: 0.6 }]} onPress={mode === "login" ? submitLogin : submitRegister} disabled={busy}>
+              <Text style={styles.primaryText}>{busy ? "请稍候…" : mode === "login" ? "登录" : "注册并登录"}</Text>
+            </Pressable>
+
+            {mode === "login" ? (
+              <Pressable onPress={openForgot} style={styles.forgot}>
+                <Text style={styles.forgotText}>忘记密码？联系客服重置</Text>
+              </Pressable>
+            ) : null}
+          </View>
+
+          <Text style={styles.footer}>注册/登录使用官网账号，需完成极验验证；账号数据仅用于官网服务。</Text>
+        </>
+      )}
+
+      <CaptchaModal
+        visible={captchaVisible}
+        onClose={() => { setCaptchaVisible(false); setBusy(false); }}
+        onSuccess={(data) => {
+          setCaptchaVisible(false);
+          const action = pendingAction;
+          setPendingAction(null);
+          if (action) void action(data);
+        }}
+      />
+    </ScrollView>
+  );
+}
+
+const makeStyles = (colors: Colors) =>
+  StyleSheet.create({
+    card: { backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, padding: 18 },
+    avatar: { width: 56, height: 56, borderRadius: 28, backgroundColor: colors.brandSoft, alignItems: "center", justifyContent: "center", alignSelf: "center" },
+    avatarText: { fontSize: 22, fontWeight: "700", color: colors.brand },
+    name: { fontSize: 18, fontWeight: "700", color: colors.ink, textAlign: "center", marginTop: 10 },
+    meta: { fontSize: 11, color: colors.faint, textAlign: "center", marginTop: 4 },
+    infoList: { marginTop: 16, borderTopWidth: 1, borderTopColor: colors.line },
+    infoRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.line },
+    infoLabel: { fontSize: 12, color: colors.faint },
+    infoValue: { fontSize: 13, color: colors.ink },
+    tabs: { flexDirection: "row", backgroundColor: colors.chipBg, borderRadius: radius.sm, padding: 3, marginBottom: 14 },
+    tab: { flex: 1, height: 38, alignItems: "center", justifyContent: "center", borderRadius: 6 },
+    tabActive: { backgroundColor: colors.surface },
+    tabText: { fontSize: 13.5, color: colors.sub },
+    label: { fontSize: 11.5, color: colors.sub, marginTop: 12, marginBottom: 6 },
+    input: { height: 44, borderWidth: 1, borderColor: colors.fieldBorder, borderRadius: radius.sm, paddingHorizontal: 12, fontSize: 14, color: colors.ink, backgroundColor: colors.fieldBg },
+    section: { fontSize: 12, fontWeight: "600", color: colors.ink, marginTop: 18 },
+    error: { fontSize: 12, color: colors.danger, marginTop: 12, lineHeight: 18 },
+    primary: { marginTop: 18, height: 46, borderRadius: radius.sm, backgroundColor: colors.brand, alignItems: "center", justifyContent: "center" },
+    primaryText: { color: "#FFFFFF", fontSize: 15, fontWeight: "600" },
+    ghostBtn: { marginTop: 14, height: 46, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.fieldBorder, alignItems: "center", justifyContent: "center" },
+    ghostText: { fontSize: 14, color: colors.ink },
+    forgot: { marginTop: 14, alignItems: "center" },
+    forgotText: { fontSize: 12, color: colors.brand },
+    footer: { fontSize: 10.5, color: colors.faint, textAlign: "center", marginTop: 18, lineHeight: 17 },
+  });

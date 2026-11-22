@@ -12,6 +12,7 @@ $qq = setting('contact_qq');
 $wechat = setting('contact_wechat');
 $anns = db()->query('SELECT id, title, content, pinned, created_at FROM announcements ORDER BY pinned DESC, id DESC LIMIT 6')->fetchAll();
 $shot = 'assets/shots/schedule.png';
+$logoText = setting('logo_text') ?: mb_substr($name, 0, 1);
 ?>
 <!doctype html><html lang="zh-CN"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
@@ -98,7 +99,7 @@ footer{border-top:1px solid var(--line);margin-top:52px;padding:34px 0 46px;colo
 
 <nav><div class="wrap nav-inner">
   <a class="brand" href="/">
-    <?php if ($logo): ?><img src="<?= e($logo) ?>" alt=""><?php else: ?><span class="mark">知</span><?php endif; ?>
+    <?php if ($logo): ?><img src="<?= e($logo) ?>" alt=""><?php else: ?><span class="mark"><?= e($logoText) ?></span><?php endif; ?>
     <span><?= e($name) ?></span>
   </a>
   <div class="nav-links">
@@ -138,12 +139,12 @@ footer{border-top:1px solid var(--line);margin-top:52px;padding:34px 0 46px;colo
       </div>
     </div>
     <div class="grid">
-      <div class="card"><div class="icon">📥</div><h3>多种导入方式</h3><p>网页识别、源码粘贴、Excel / CSV / JSON 文件导入，导入前还能逐条改。</p></div>
-      <div class="card"><div class="icon">🗓️</div><h3>单节清晰排列</h3><p>第 1 节到第 10 节逐节显示，跨节课程整块展示，非本周课程淡化并可用气泡查看。</p></div>
-      <div class="card"><div class="icon">⏰</div><h3>上课提醒</h3><p>本地通知，提前 5/10/15/30 分钟可调，不依赖后台常驻。</p></div>
-      <div class="card"><div class="icon">🎨</div><h3>8 套配色</h3><p>经典蓝、薄荷绿、暖阳橙等，行高、圆角、透明度、深色模式都能调。</p></div>
-      <div class="card"><div class="icon">🧩</div><h3>桌面小组件</h3><p>周课表与今日课程两种小组件，点击直接进入应用。</p></div>
-      <div class="card"><div class="icon">📝</div><h3>备忘录与日历</h3><p>富文本 + 手绘备忘录，课程与日程在一个月视图里看全。</p></div>
+      <div class="card"><div class="icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#2563eb" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M4 19h16"/></svg></div><h3>多种导入方式</h3><p>网页识别、源码粘贴、Excel / CSV / JSON 文件导入，导入前还能逐条改。</p></div>
+      <div class="card"><div class="icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#2563eb" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 10h18"/></svg></div><h3>单节清晰排列</h3><p>第 1 节到第 10 节逐节显示，跨节课程整块展示，非本周课程淡化并可用气泡查看。</p></div>
+      <div class="card"><div class="icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#2563eb" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 9a6 6 0 1 0-12 0c0 6-2 7-2 7h16s-2-1-2-7"/><path d="M10 20a2 2 0 0 0 4 0"/></svg></div><h3>上课提醒</h3><p>本地通知，提前 5/10/15/30 分钟可调，不依赖后台常驻。</p></div>
+      <div class="card"><div class="icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#2563eb" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 0 18c1.5 0 2-1 2-2 0-1.2-1-1.7-1-2.8 0-.9.8-1.7 1.8-1.7H17a4 4 0 0 0 4-4A9 9 0 0 0 12 3Z"/><circle cx="7.5" cy="11" r="1"/><circle cx="10" cy="7" r="1"/><circle cx="15" cy="7.5" r="1"/></svg></div><h3>8 套配色</h3><p>经典蓝、薄荷绿、暖阳橙等，行高、圆角、透明度、深色模式都能调。</p></div>
+      <div class="card"><div class="icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#2563eb" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></div><h3>桌面小组件</h3><p>周课表与今日课程两种小组件，点击直接进入应用。</p></div>
+      <div class="card"><div class="icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#2563eb" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h5"/></svg></div><h3>备忘录与日历</h3><p>富文本 + 手绘备忘录，课程与日程在一个月视图里看全。</p></div>
     </div>
   </section>
 

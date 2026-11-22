@@ -11,6 +11,7 @@ export type SiteInfo = {
   logo: string;
   download: string;
   contact: { email: string; qq: string; wechat: string; site: string };
+  captcha?: { enabled: boolean; id: string };
 };
 
 export type Announcement = {

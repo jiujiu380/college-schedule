@@ -6,6 +6,7 @@ $nav = [
   'settings.php' => '网站设置',
   'announcements.php' => '公告管理',
   'update.php' => '版本更新',
+  'users.php' => '用户管理',
   'tickets.php' => '工单',
 ];
 ?>

@@ -38,3 +38,16 @@ CREATE TABLE IF NOT EXISTS admins (
   username VARCHAR(64) UNIQUE,
   password_hash VARCHAR(255)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS users (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  username VARCHAR(64) UNIQUE,
+  password_hash VARCHAR(255),
+  email VARCHAR(120),
+  qq VARCHAR(64),
+  wechat VARCHAR(64),
+  token VARCHAR(64),
+  status VARCHAR(16) DEFAULT 'active',
+  created_at DATETIME,
+  updated_at DATETIME,
+  last_login DATETIME
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

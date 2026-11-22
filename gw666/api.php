@@ -11,6 +11,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 $action = $_GET['action'] ?? '';
 
 try {
+  ensure_schema();
   switch ($action) {
     case 'site':
       json_out([
@@ -23,6 +24,10 @@ try {
           'qq' => setting('contact_qq'),
           'wechat' => setting('contact_wechat'),
           'site' => setting('contact_site'),
+        ],
+        'captcha' => [
+          'enabled' => captcha_enabled(),
+          'id' => setting('captcha_id'),
         ],
       ]);
 
@@ -55,6 +60,59 @@ try {
       $st = db()->prepare('INSERT INTO tickets (device_id, contact, title, content, status, created_at) VALUES (?, ?, ?, ?, "open", NOW())');
       $st->execute([$device, $contact, mb_substr($title, 0, 200), mb_substr($content, 0, 5000)]);
       json_out(['ok' => true, 'id' => (int)db()->lastInsertId()]);
+
+    case 'user_register':
+      $input = json_decode(file_get_contents('php://input'), true) ?: $_POST;
+      $u = trim((string)($input['username'] ?? ''));
+      $p = (string)($input['password'] ?? '');
+      $email = trim((string)($input['email'] ?? ''));
+      $qq = trim((string)($input['qq'] ?? ''));
+      $wechat = trim((string)($input['wechat'] ?? ''));
+      if (strlen($u) < 3 || strlen($u) > 24 || !preg_match('/^[A-Za-z0-9_\x{4e00}-\x{9fa5}]+$/u', $u)) {
+        json_out(['error' => '用户名需 3-24 位，仅限字母、数字、下划线或中文'], 422);
+      }
+      if (strlen($p) < 6) json_out(['error' => '密码至少 6 位'], 422);
+      if ($email === '' && $qq === '' && $wechat === '') json_out(['error' => '请至少填写一种联系方式'], 422);
+      $cap = verify_captcha($input['captcha'] ?? []);
+      if (!$cap['ok']) json_out(['error' => $cap['error']], 422);
+      $exists = db()->prepare('SELECT id FROM users WHERE username = ?');
+      $exists->execute([$u]);
+      if ($exists->fetch()) json_out(['error' => '用户名已被注册'], 409);
+      $st = db()->prepare('INSERT INTO users (username, password_hash, email, qq, wechat, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, "active", NOW(), NOW())');
+      $st->execute([$u, password_hash($p, PASSWORD_DEFAULT), $email, $qq, $wechat]);
+      json_out(['ok' => true, 'id' => (int)db()->lastInsertId()]);
+
+    case 'user_login':
+      $input = json_decode(file_get_contents('php://input'), true) ?: $_POST;
+      $u = trim((string)($input['username'] ?? ''));
+      $p = (string)($input['password'] ?? '');
+      $cap = verify_captcha($input['captcha'] ?? []);
+      if (!$cap['ok']) json_out(['error' => $cap['error']], 422);
+      $st = db()->prepare('SELECT * FROM users WHERE username = ?');
+      $st->execute([$u]);
+      $user = $st->fetch();
+      if (!$user || !password_verify($p, $user['password_hash'])) json_out(['error' => '用户名或密码错误'], 401);
+      if (($user['status'] ?? 'active') !== 'active') json_out(['error' => '账号已被停用，请联系客服'], 403);
+      $token = bin2hex(random_bytes(24));
+      db()->prepare('UPDATE users SET token = ?, last_login = NOW() WHERE id = ?')->execute([$token, $user['id']]);
+      $user['token'] = $token;
+      $user['last_login'] = date('Y-m-d H:i:s');
+      json_out(['ok' => true, 'token' => $token, 'user' => public_user($user)]);
+
+    case 'user_me':
+      $token = trim((string)($_GET['token'] ?? ''));
+      if ($token === '') json_out(['error' => '未登录'], 401);
+      $st = db()->prepare('SELECT * FROM users WHERE token = ?');
+      $st->execute([$token]);
+      $user = $st->fetch();
+      if (!$user) json_out(['error' => '登录已失效'], 401);
+      json_out(['user' => public_user($user)]);
+
+    case 'user_logout':
+      $input = json_decode(file_get_contents('php://input'), true) ?: $_POST;
+      $token = trim((string)($input['token'] ?? ''));
+      if ($token !== '') db()->prepare('UPDATE users SET token = NULL WHERE token = ?')->execute([$token]);
+      json_out(['ok' => true]);
 
     default:
       json_out(['error' => 'unknown action'], 404);

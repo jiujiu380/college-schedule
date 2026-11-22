@@ -78,3 +78,73 @@ function check_csrf(): void {
     exit('CSRF token 无效');
   }
 }
+
+/** 兼容旧部署：自动补建用户表 */
+function ensure_schema(): void {
+  db()->exec("CREATE TABLE IF NOT EXISTS users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(64) UNIQUE,
+    password_hash VARCHAR(255),
+    email VARCHAR(120),
+    qq VARCHAR(64),
+    wechat VARCHAR(64),
+    token VARCHAR(64),
+    status VARCHAR(16) DEFAULT 'active',
+    created_at DATETIME,
+    updated_at DATETIME,
+    last_login DATETIME
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+}
+
+function captcha_enabled(): bool {
+  return setting('captcha_enabled', '1') === '1'
+    && setting('captcha_id') !== ''
+    && setting('captcha_key') !== '';
+}
+
+function verify_captcha(array $c): array {
+  if (!captcha_enabled()) return ['ok' => true];
+  $lot = trim((string)($c['lot_number'] ?? ''));
+  $output = trim((string)($c['captcha_output'] ?? ''));
+  $pass = trim((string)($c['pass_token'] ?? ''));
+  $gen = trim((string)($c['gen_time'] ?? ''));
+  if ($lot === '' || $output === '' || $pass === '' || $gen === '') {
+    return ['ok' => false, 'error' => '请先完成极验验证'];
+  }
+  $sign = hash_hmac('sha256', $lot, setting('captcha_key'));
+  $body = http_build_query([
+    'lot_number' => $lot,
+    'captcha_output' => $output,
+    'pass_token' => $pass,
+    'gen_time' => $gen,
+    'sign_token' => $sign,
+  ]);
+  $ch = curl_init('https://gcaptcha4.geetest.com/validate?captcha_id=' . urlencode(setting('captcha_id')));
+  curl_setopt_array($ch, [
+    CURLOPT_POST => true,
+    CURLOPT_POSTFIELDS => $body,
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_TIMEOUT => 10,
+    CURLOPT_HTTPHEADER => ['Content-Type: application/x-www-form-urlencoded'],
+  ]);
+  $raw = curl_exec($ch);
+  $err = curl_error($ch);
+  curl_close($ch);
+  if ($raw === false) return ['ok' => false, 'error' => '验证码服务连接失败：' . $err];
+  $json = json_decode((string)$raw, true);
+  if (($json['result'] ?? '') === 'success') return ['ok' => true];
+  return ['ok' => false, 'error' => '验证码校验失败，请重试'];
+}
+
+function public_user(array $u): array {
+  return [
+    'id' => (int)$u['id'],
+    'username' => $u['username'],
+    'email' => $u['email'],
+    'qq' => $u['qq'],
+    'wechat' => $u['wechat'],
+    'status' => $u['status'],
+    'created_at' => $u['created_at'],
+    'last_login' => $u['last_login'],
+  ];
+}

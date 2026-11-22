@@ -1,11 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import React, { useEffect, useMemo, useState } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScreenStatusBar } from "../../components/ScreenStatusBar";
 import { cancelAllReminders, ensureNotifyPermission, getLeadMinutes, isNotifyEnabled, scheduleClassReminders, setLeadMinutes, setNotifyEnabled } from "../../lib/notifications";
 import { useSchedule } from "../../lib/schedule-store";
+import { AccountUser, getCachedAccount, refreshAccount } from "../../lib/account";
 import * as Notifications from "expo-notifications";
 import { ensureChannel } from "../../lib/notifications";
 import { useTheme } from "../../lib/theme-context";
@@ -24,6 +25,12 @@ export default function SettingsScreen() {
     courses, periods, ui, preset, seasonText, source, activeTable,
   } = useSchedule();
   const { result: updateResult, checking: updateChecking } = useUpdate();
+  const [account, setAccount] = useState<AccountUser | null>(null);
+
+  useFocusEffect(useCallback(() => {
+    getCachedAccount().then(setAccount);
+    refreshAccount().then((u) => { if (u) setAccount(u); }).catch(() => {});
+  }, []));
   const [notify, setNotify] = useState(false);
   const [lead, setLead] = useState(10);
   const [busy, setBusy] = useState(false);
@@ -99,14 +106,18 @@ export default function SettingsScreen() {
       <Text style={styles.title}>我的</Text>
 
       <View style={[styles.card, { marginTop: 14 }]}>
-        <View style={styles.profile}>
-          <View style={styles.avatar}><Ionicons name="calendar" size={22} color="#FFFFFF" /></View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.name}>{activeTable.name}</Text>
-            <Text style={styles.role}>{tables.length} 张课表 · {courses.length} 门课程 · 完全离线</Text>
+        <Pressable style={styles.profile} onPress={() => router.push("/account")}>
+          <View style={styles.avatar}>
+            {account ? <Text style={styles.avatarText}>{account.username.slice(0, 1).toUpperCase()}</Text> : <Ionicons name="person" size={20} color="#FFFFFF" />}
           </View>
-          <Text style={styles.statusTag}>{source === "demo" ? "DEMO" : "LOCAL"}</Text>
-        </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.name}>{account ? account.username : "登录 / 注册账号"}</Text>
+            <Text style={styles.role}>
+              {account ? "已登录 · " + (account.email || account.qq || account.wechat || "官网账号") : "注册后可提交工单、接收公告与服务"}
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color={colors.faint} />
+        </Pressable>
       </View>
 
       <Text style={styles.section}>课表管理</Text>
@@ -238,6 +249,7 @@ const makeStyles = (colors: Colors) =>
     card: { backgroundColor: colors.surface, marginHorizontal: 16, marginTop: 10, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, overflow: "hidden" },
     profile: { flexDirection: "row", alignItems: "center", padding: 16, gap: 12 },
     avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.brand, alignItems: "center", justifyContent: "center" },
+    avatarText: { fontSize: 18, fontWeight: "700", color: "#FFFFFF" },
     name: { fontSize: 16, fontWeight: "600", color: colors.ink },
     role: { fontSize: 11.5, color: colors.sub, marginTop: 4 },
     statusTag: { fontSize: 10, fontWeight: "600", color: colors.success, borderWidth: 1, borderColor: colors.success, borderRadius: 3, paddingHorizontal: 6, paddingVertical: 2 },
