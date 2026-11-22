@@ -20,6 +20,7 @@ export type WeatherNow = {
   rainAlert: string | null;
   days: WeatherDay[];
   updatedAt: number;
+  stale?: boolean;
 };
 
 const CODE_MAP: Record<number, string> = {
@@ -168,9 +169,77 @@ async function fetchDomesticWeather(city: string | null): Promise<WeatherNow | n
   }
 }
 
+const CACHE_KEY = "college.weather.cache.v1";
+
+async function saveCache(w: WeatherNow): Promise<void> {
+  try {
+    await AsyncStorage.setItem(CACHE_KEY, JSON.stringify(w));
+  } catch {
+    // ignore
+  }
+}
+
+async function readCache(): Promise<WeatherNow | null> {
+  try {
+    const raw = await AsyncStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as WeatherNow;
+    return parsed && typeof parsed.temp === "number" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchOpenMeteo(lat: number, lon: number, city: string | null): Promise<WeatherNow | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 12000);
+  try {
+    const url =
+      "https://api.open-meteo.com/v1/forecast?latitude=" + lat.toFixed(3) + "&longitude=" + lon.toFixed(3) +
+      "&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m" +
+      "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&forecast_days=3&timezone=auto";
+    const res = await fetch(url, { signal: controller.signal });
+    if (!res.ok) return null;
+    const data: any = await res.json();
+    const code = Number(data.current?.weather_code ?? 0);
+    const days: WeatherDay[] = (data.daily?.time ?? []).map((d: string, i: number) => {
+      const dc = Number(data.daily.weather_code?.[i] ?? 0);
+      return {
+        date: String(d),
+        code: dc,
+        label: weatherLabel(dc),
+        min: Math.round(Number(data.daily.temperature_2m_min?.[i] ?? 0)),
+        max: Math.round(Number(data.daily.temperature_2m_max?.[i] ?? 0)),
+        rain: Number(data.daily.precipitation_probability_max?.[i] ?? 0),
+      };
+    });
+    const rain = days[0]?.rain ?? 0;
+    return {
+      city: city || "当前位置",
+      temp: Math.round(Number(data.current?.temperature_2m ?? 0)),
+      feels: Math.round(Number(data.current?.apparent_temperature ?? 0)),
+      humidity: Math.round(Number(data.current?.relative_humidity_2m ?? 0)),
+      wind: Math.round(Number(data.current?.wind_speed_10m ?? 0)),
+      code,
+      label: weatherLabel(code),
+      rainAlert: rain >= 60 ? "今天降雨概率 " + rain + "%，出门记得带伞" : null,
+      days,
+      updatedAt: Date.now(),
+    };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function loadWeather(): Promise<WeatherNow> {
   const perm = await Location.requestForegroundPermissionsAsync();
-  if (!perm.granted) throw new Error("没有定位权限，无法获取本地天气");
+  if (!perm.granted) {
+    const cached = await readCache();
+    if (cached) return { ...cached, stale: true };
+    throw new Error("没有定位权限，无法获取本地天气");
+  }
 
   const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
   const { latitude, longitude } = pos.coords;
@@ -186,58 +255,75 @@ export async function loadWeather(): Promise<WeatherNow> {
     if (city) await setWeatherCity(city);
   }
 
+  // 1) 中央气象台（国内官方，稳定）
   const cma = await fetchCmaWeather(city);
-  if (cma) return cma;
-
-  const domestic = await fetchDomesticWeather(city);
-  if (domestic) return domestic;
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 15000);
-  let data: any;
-  try {
-    const url = "https://wttr.in/" + latitude.toFixed(3) + "," + longitude.toFixed(3) + "?format=j1";
-    const res = await fetch(url, { signal: controller.signal });
-    if (!res.ok) throw new Error("天气服务不可用（" + res.status + "）");
-    data = await res.json();
-  } catch (e) {
-    throw new Error("天气获取失败，请检查网络后重试");
-  } finally {
-    clearTimeout(timer);
+  if (cma) {
+    await saveCache(cma);
+    return cma;
   }
 
-  const cur = data.current_condition?.[0] ?? {};
-  const currentCode = Number(cur.weatherCode ?? 113);
-  const currentTemp = Math.round(Number(cur.temp_C ?? 0));
+  // 2) Open-Meteo（全球稳定、无需 Key、按坐标）
+  const openMeteo = await fetchOpenMeteo(latitude, longitude, city);
+  if (openMeteo) {
+    await saveCache(openMeteo);
+    return openMeteo;
+  }
 
-  const days: WeatherDay[] = (data.weather ?? []).slice(0, 3).map((d: any) => {
-    const hourly = Array.isArray(d.hourly) ? d.hourly : [];
-    const rain = hourly.reduce((mx: number, h: any) => Math.max(mx, Number(h.chanceofrain ?? 0)), 0);
-    const code = Number(hourly[0]?.weatherCode ?? currentCode);
-    return {
-      date: String(d.date ?? ""),
-      code,
-      label: weatherLabel(code),
-      min: Math.round(Number(d.mintempC ?? 0)),
-      max: Math.round(Number(d.maxtempC ?? 0)),
-      rain,
-    };
-  });
+  // 3) vvhan 国内接口
+  const domestic = await fetchDomesticWeather(city);
+  if (domestic) {
+    await saveCache(domestic);
+    return domestic;
+  }
 
-  const rainToday = days[0]?.rain ?? 0;
+  // 4) wttr.in
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15000);
+    const url = "https://wttr.in/" + latitude.toFixed(3) + "," + longitude.toFixed(3) + "?format=j1";
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timer);
+    if (res.ok) {
+      const data: any = await res.json();
+      const cur = data.current_condition?.[0] ?? {};
+      const currentCode = Number(cur.weatherCode ?? 113);
+      const currentTemp = Math.round(Number(cur.temp_C ?? 0));
+      const days: WeatherDay[] = (data.weather ?? []).slice(0, 3).map((d: any) => {
+        const hourly = Array.isArray(d.hourly) ? d.hourly : [];
+        const rain = hourly.reduce((mx: number, h: any) => Math.max(mx, Number(h.chanceofrain ?? 0)), 0);
+        const code = Number(hourly[0]?.weatherCode ?? currentCode);
+        return {
+          date: String(d.date ?? ""),
+          code,
+          label: weatherLabel(code),
+          min: Math.round(Number(d.mintempC ?? 0)),
+          max: Math.round(Number(d.maxtempC ?? 0)),
+          rain,
+        };
+      });
+      const rainToday = days[0]?.rain ?? 0;
+      const result: WeatherNow = {
+        city: city || "当前位置",
+        temp: currentTemp,
+        feels: Math.round(Number(cur.FeelsLikeC ?? currentTemp)),
+        humidity: Math.round(Number(cur.humidity ?? 0)),
+        wind: Math.round(Number(cur.windspeedKmph ?? 0)),
+        code: currentCode,
+        label: weatherLabel(currentCode),
+        rainAlert: rainToday >= 60 ? "今天降雨概率 " + rainToday + "%，出门记得带伞" : null,
+        days,
+        updatedAt: Date.now(),
+      };
+      await saveCache(result);
+      return result;
+    }
+  } catch {
+    // fall through to cache
+  }
 
-  return {
-    city: city || "当前位置",
-    temp: currentTemp,
-    feels: Math.round(Number(cur.FeelsLikeC ?? currentTemp)),
-    humidity: Math.round(Number(cur.humidity ?? 0)),
-    wind: Math.round(Number(cur.windspeedKmph ?? 0)),
-    code: currentCode,
-    label: weatherLabel(currentCode),
-    rainAlert: rainToday >= 60 ? "今天降雨概率 " + rainToday + "%，出门记得带伞" : null,
-    days,
-    updatedAt: Date.now(),
-  };
+  const cached = await readCache();
+  if (cached) return { ...cached, stale: true };
+  throw new Error("天气获取失败，请检查网络后重试");
 }
 
 export async function scheduleWeatherReminder(w: WeatherNow): Promise<boolean> {

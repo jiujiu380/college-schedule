@@ -45,6 +45,8 @@ CREATE TABLE IF NOT EXISTS users (
   email VARCHAR(120),
   qq VARCHAR(64),
   wechat VARCHAR(64),
+  nickname VARCHAR(64),
+  avatar VARCHAR(255),
   token VARCHAR(64),
   status VARCHAR(16) DEFAULT 'active',
   created_at DATETIME,

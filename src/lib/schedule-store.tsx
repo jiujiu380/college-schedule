@@ -17,6 +17,7 @@ import { StaticMeta } from "./static-timetable";
 import { ThemePreset, presetById } from "./theme-presets";
 import { writeWidgetData } from "./widget-data";
 import { uploadCloud } from "./cloud-sync";
+import { setAccent } from "./accent";
 import { getLeadMinutes, isNotifyEnabled, scheduleClassReminders } from "./notifications";
 
 export type ScheduleSource = "demo" | "static" | "api";
@@ -82,6 +83,12 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (ready) void saveTables({ tables, activeId });
   }, [tables, activeId, ready]);
+
+  useEffect(() => {
+    if (!ready) return;
+    const table = tables.find((x) => x.id === activeId) ?? tables[0];
+    if (table?.themeId) setAccent(table.themeId);
+  }, [ready, activeId, tables]);
 
   const reminderInit = useRef(false);
   useEffect(() => {

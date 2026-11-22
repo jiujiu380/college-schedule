@@ -7,6 +7,8 @@ const USER_KEY = "college.account.user.v1";
 export type AccountUser = {
   id: number;
   username: string;
+  nickname?: string | null;
+  avatar?: string | null;
   email: string;
   qq: string;
   wechat: string;
@@ -83,6 +85,14 @@ export async function refreshAccount(): Promise<AccountUser | null> {
   const data = await res.json();
   if (data?.user) await AsyncStorage.setItem(USER_KEY, JSON.stringify(data.user));
   return (data?.user as AccountUser) ?? null;
+}
+
+export async function updateProfile(input: { nickname?: string; avatarBase64?: string }): Promise<AccountUser> {
+  const token = await getAccountToken();
+  if (!token) throw new Error("请先登录");
+  const data = await postJson("/api.php?action=update_profile", { token, ...input });
+  await saveSession(token, data.user);
+  return data.user as AccountUser;
 }
 
 export async function logoutAccount(): Promise<void> {

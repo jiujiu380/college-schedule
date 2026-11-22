@@ -139,6 +139,33 @@ try {
       if (!$data) json_out(['data' => null]);
       json_out(['data' => json_decode($data['payload'], true), 'updated_at' => $data['updated_at']]);
 
+    case 'update_profile':
+      $input = json_decode(file_get_contents('php://input'), true) ?: $_POST;
+      $token = trim((string)($input['token'] ?? ''));
+      $st = db()->prepare('SELECT * FROM users WHERE token = ?');
+      $st->execute([$token]);
+      $user = $st->fetch();
+      if (!$user) json_out(['error' => '登录已失效'], 401);
+      $nickname = trim((string)($input['nickname'] ?? ''));
+      if (mb_strlen($nickname) > 20) json_out(['error' => '昵称最多 20 个字'], 422);
+      $avatar = $user['avatar'] ?? null;
+      $raw = (string)($input['avatar_base64'] ?? '');
+      if ($raw !== '') {
+        if (!preg_match('#^data:image/(png|jpeg|jpg|webp);base64,#', $raw, $m)) json_out(['error' => '头像格式不支持'], 422);
+        $bin = base64_decode(substr($raw, strlen($m[0])), true);
+        if ($bin === false || strlen($bin) > 2 * 1024 * 1024) json_out(['error' => '头像需小于 2MB'], 422);
+        $ext = $m[1] === 'jpeg' ? 'jpg' : $m[1];
+        $dir = __DIR__ . '/uploads/avatars';
+        if (!is_dir($dir)) mkdir($dir, 0755, true);
+        $name = 'u' . (int)$user['id'] . '_' . time() . '.' . $ext;
+        if (file_put_contents($dir . '/' . $name, $bin) === false) json_out(['error' => '头像保存失败'], 500);
+        $avatar = 'uploads/avatars/' . $name;
+      }
+      db()->prepare('UPDATE users SET nickname = ?, avatar = ?, updated_at = NOW() WHERE id = ?')->execute([$nickname, $avatar, $user['id']]);
+      $user['nickname'] = $nickname;
+      $user['avatar'] = $avatar;
+      json_out(['ok' => true, 'user' => public_user($user)]);
+
     case 'user_logout':
       $input = json_decode(file_get_contents('php://input'), true) ?: $_POST;
       $token = trim((string)($input['token'] ?? ''));

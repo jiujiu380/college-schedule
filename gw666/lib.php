@@ -99,6 +99,12 @@ function ensure_schema(): void {
     payload LONGTEXT,
     updated_at DATETIME
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+  foreach ([
+    'ALTER TABLE users ADD COLUMN nickname VARCHAR(64) NULL',
+    'ALTER TABLE users ADD COLUMN avatar VARCHAR(255) NULL',
+  ] as $alter) {
+    try { db()->exec($alter); } catch (Throwable $e) { /* 列已存在 */ }
+  }
 }
 
 function captcha_enabled(): bool {
@@ -145,6 +151,8 @@ function public_user(array $u): array {
   return [
     'id' => (int)$u['id'],
     'username' => $u['username'],
+    'nickname' => $u['nickname'] ?? null,
+    'avatar' => $u['avatar'] ?? null,
     'email' => $u['email'],
     'qq' => $u['qq'],
     'wechat' => $u['wechat'],

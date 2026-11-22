@@ -34,6 +34,7 @@ Base：`https://你的域名/api.php`
 | `POST ?action=user_login` | 登录：username/password/captcha，返回 token |
 | `GET ?action=user_me&token=` | 当前用户信息 |
 | `POST ?action=user_logout` | 退出登录 |
+| `POST ?action=update_profile` | 修改昵称/头像：token/nickname/avatar_base64 |
 | `POST ?action=sync_save` | 上传课表/备忘录/日程，JSON：token/data |
 | `GET ?action=sync_load&token=` | 读取云端数据 |
 

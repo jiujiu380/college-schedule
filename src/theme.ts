@@ -55,6 +55,19 @@ export const darkColors: Colors = {
   overlay: "rgba(255,255,255,0.06)",
 };
 
+export function mixHex(a: string, b: string, ratio: number): string {
+  const pa = a.replace("#", "");
+  const pb = b.replace("#", "");
+  const to = (s: string) => parseInt(s.length === 3 ? s.split("").map((c) => c + c).join("") : s, 16);
+  const x = to(pa);
+  const y = to(pb);
+  const ch = (shift: number) => {
+    const v = Math.round((((x >> shift) & 255) * (1 - ratio)) + (((y >> shift) & 255) * ratio));
+    return Math.max(0, Math.min(255, v)).toString(16).padStart(2, "0");
+  };
+  return "#" + ch(16) + ch(8) + ch(0);
+}
+
 export function colorsOf(scheme: Scheme): Colors {
   return scheme === "dark" ? darkColors : lightColors;
 }

@@ -79,6 +79,12 @@ export default function WeatherScreen() {
                 <Text style={styles.feels}>体感 {weather.feels}° · 湿度 {weather.humidity}% · 风速 {weather.wind}km/h</Text>
               </View>
             </View>
+            {weather.stale ? (
+              <View style={styles.alert}>
+                <Ionicons name="cloud-offline-outline" size={15} color={colors.warnText} />
+                <Text style={[styles.alertText, { color: colors.warnText }]}>网络不可用，显示上次缓存 · {new Date(weather.updatedAt).toLocaleString()}</Text>
+              </View>
+            ) : null}
             {weather.rainAlert ? (
               <View style={styles.alert}>
                 <Ionicons name="umbrella-outline" size={15} color={colors.brand} />

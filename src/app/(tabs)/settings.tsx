@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScreenStatusBar } from "../../components/ScreenStatusBar";
 import { cancelAllReminders, ensureNotifyPermission, getLeadMinutes, isNotifyEnabled, scheduleClassReminders, setLeadMinutes, setNotifyEnabled } from "../../lib/notifications";
 import { useSchedule } from "../../lib/schedule-store";
+import { setAccent } from "../../lib/accent";
 import { AccountUser, getCachedAccount, refreshAccount } from "../../lib/account";
 import * as Notifications from "expo-notifications";
 import { ensureChannel } from "../../lib/notifications";
@@ -18,7 +19,7 @@ import { Colors, ThemeMode, radius } from "../../theme";
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { mode, setMode, colors, scheme } = useTheme();
+  const { mode, setMode, colors, scheme, accent } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const {
     tables, activeId, switchTable, addTable, deleteTable, updateTable,
@@ -108,10 +109,10 @@ export default function SettingsScreen() {
       <View style={[styles.card, { marginTop: 14 }]}>
         <Pressable style={styles.profile} onPress={() => router.push("/account")}>
           <View style={styles.avatar}>
-            {account ? <Text style={styles.avatarText}>{account.username.slice(0, 1).toUpperCase()}</Text> : <Ionicons name="person" size={20} color="#FFFFFF" />}
+            {account ? <Text style={styles.avatarText}>{(account.nickname || account.username).slice(0, 1).toUpperCase()}</Text> : <Ionicons name="person" size={20} color="#FFFFFF" />}
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.name}>{account ? account.username : "登录 / 注册账号"}</Text>
+            <Text style={styles.name}>{account ? account.nickname || account.username : "登录 / 注册账号"}</Text>
             <Text style={styles.role}>
               {account ? "已登录 · " + (account.email || account.qq || account.wechat || "官网账号") : "注册后可提交工单、接收公告与服务"}
             </Text>
@@ -155,9 +156,9 @@ export default function SettingsScreen() {
         <Text style={styles.subLabel}>配色</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.themeRow}>
           {THEME_PRESETS.map((p) => {
-            const active = activeTable.themeId === p.id;
+            const active = accent === p.id;
             return (
-              <Pressable key={p.id} style={[styles.themeCard, active && { borderColor: p.brand }]} onPress={() => updateTable({ themeId: p.id })}>
+              <Pressable key={p.id} style={[styles.themeCard, active && { borderColor: p.brand }]} onPress={() => { setAccent(p.id); updateTable({ themeId: p.id }); }}>
                 <View style={styles.themePreview}>
                   {p.tints.slice(0, 3).map((t, i) => (
                     <View key={i} style={[styles.themeBar, { backgroundColor: t.bg, borderLeftColor: t.bar }]}>

@@ -1,12 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
 import * as Linking from "expo-linking";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import React, { useCallback, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CaptchaModal } from "../components/CaptchaModal";
 import { ScreenStatusBar } from "../components/ScreenStatusBar";
-import { AccountUser, CaptchaPayload, getCachedAccount, loginAccount, logoutAccount, refreshAccount, registerAccount } from "../lib/account";
+import { AccountUser, CaptchaPayload, getCachedAccount, loginAccount, logoutAccount, refreshAccount, registerAccount, updateProfile } from "../lib/account";
 import { fetchSiteInfo, getSiteBase } from "../lib/site-api";
 import { applyCloudData, downloadCloud, uploadCloud } from "../lib/cloud-sync";
 import { useSchedule } from "../lib/schedule-store";
@@ -34,6 +35,11 @@ export default function AccountScreen() {
   const [pendingAction, setPendingAction] = useState<null | ((cap?: CaptchaPayload) => Promise<void>)>(null);
   const [syncing, setSyncing] = useState(false);
   const [agree, setAgree] = useState(false);
+  const [nickname, setNickname] = useState("");
+  const [avatarBase64, setAvatarBase64] = useState<string | undefined>();
+  const [avatarLocal, setAvatarLocal] = useState<string | undefined>();
+  const [avatarUri, setAvatarUri] = useState<string | undefined>();
+  const [saving, setSaving] = useState(false);
   const { tables, activeId, restore } = useSchedule();
 
   const load = useCallback(async () => {
@@ -46,6 +52,58 @@ export default function AccountScreen() {
   }, []);
 
   useFocusEffect(useCallback(() => { void load(); }, [load]));
+
+  useEffect(() => {
+    if (!user) return;
+    setNickname(user.nickname || user.username);
+    setAvatarLocal(undefined);
+    setAvatarBase64(undefined);
+    if (user.avatar) {
+      getSiteBase().then((base) => setAvatarUri(base + "/" + user.avatar)).catch(() => setAvatarUri(undefined));
+    } else {
+      setAvatarUri(undefined);
+    }
+  }, [user]);
+
+  const pickAvatar = async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert("没有相册权限", "请在系统设置中允许访问照片。");
+      return;
+    }
+    const res = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.6,
+      base64: true,
+    });
+    if (res.canceled) return;
+    const asset = res.assets[0];
+    setAvatarLocal(asset.uri);
+    if (asset.base64) {
+      const mime = asset.mimeType || "image/jpeg";
+      setAvatarBase64("data:" + mime + ";base64," + asset.base64);
+    }
+  };
+
+  const saveProfile = async () => {
+    if (!nickname.trim()) {
+      Alert.alert("昵称不能为空");
+      return;
+    }
+    setSaving(true);
+    try {
+      const updated = await updateProfile({ nickname: nickname.trim(), avatarBase64 });
+      setUser(updated);
+      setAvatarBase64(undefined);
+      Alert.alert("已保存", "资料已更新。");
+    } catch (e) {
+      Alert.alert("保存失败", String(e instanceof Error ? e.message : e));
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const begin = async (action: (cap?: CaptchaPayload) => Promise<void>) => {
     setError("");
@@ -189,14 +247,35 @@ export default function AccountScreen() {
       {user ? (
         <>
           <View style={styles.card}>
-            <View style={styles.avatar}><Text style={styles.avatarText}>{user.username.slice(0, 1).toUpperCase()}</Text></View>
-            <Text style={styles.name}>{user.username}</Text>
-            <Text style={styles.meta}>注册于 {user.created_at}{user.last_login ? " · 最近登录 " + user.last_login : ""}</Text>
+            <Pressable style={styles.avatarWrap} onPress={pickAvatar}>
+              {avatarLocal || avatarUri ? (
+                <Image source={{ uri: avatarLocal ?? avatarUri }} style={styles.avatarImg} />
+              ) : (
+                <View style={styles.avatar}><Text style={styles.avatarText}>{(user.nickname || user.username).slice(0, 1).toUpperCase()}</Text></View>
+              )}
+              <View style={styles.cameraBadge}><Ionicons name="camera" size={12} color="#FFFFFF" /></View>
+            </Pressable>
+            <Text style={styles.avatarHint}>点击头像更换（昵称会显示在 App 内）</Text>
+
+            <Text style={styles.label}>昵称</Text>
+            <TextInput value={nickname} onChangeText={setNickname} placeholder="最多 20 个字" placeholderTextColor={colors.faint} style={styles.input} maxLength={20} />
+
             <View style={styles.infoList}>
+              <View style={styles.infoRow}><Text style={styles.infoLabel}>用户名</Text><Text style={styles.infoValue}>{user.username}（不可修改）</Text></View>
               <View style={styles.infoRow}><Text style={styles.infoLabel}>邮箱</Text><Text style={styles.infoValue}>{user.email || "—"}</Text></View>
               <View style={styles.infoRow}><Text style={styles.infoLabel}>QQ</Text><Text style={styles.infoValue}>{user.qq || "—"}</Text></View>
               <View style={styles.infoRow}><Text style={styles.infoLabel}>微信</Text><Text style={styles.infoValue}>{user.wechat || "—"}</Text></View>
+              <View style={styles.infoRow}><Text style={styles.infoLabel}>注册时间</Text><Text style={styles.infoValue}>{user.created_at}</Text></View>
             </View>
+
+            <Pressable style={[styles.primary, saving && { opacity: 0.6 }]} onPress={saveProfile} disabled={saving}>
+              <Text style={styles.primaryText}>{saving ? "保存中…" : "保存资料"}</Text>
+            </Pressable>
+            <Pressable style={styles.pwdRow} onPress={() => router.push("/contact")}>
+              <Ionicons name="lock-closed-outline" size={13} color={colors.faint} />
+              <Text style={styles.pwdText}>修改密码请联系开发者（微信 xbhlkj）</Text>
+              <Ionicons name="chevron-forward" size={12} color={colors.faint} />
+            </Pressable>
           </View>
           <View style={styles.card}>
             <Text style={styles.syncTitle}>云端同步</Text>
@@ -299,6 +378,12 @@ const makeStyles = (colors: Colors) =>
     card: { backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, padding: 18 },
     avatar: { width: 56, height: 56, borderRadius: 28, backgroundColor: colors.brandSoft, alignItems: "center", justifyContent: "center", alignSelf: "center" },
     avatarText: { fontSize: 22, fontWeight: "700", color: colors.brand },
+    avatarWrap: { alignSelf: "center", marginTop: 2 },
+    avatarImg: { width: 76, height: 76, borderRadius: 38, backgroundColor: colors.chipBg },
+    cameraBadge: { position: "absolute", right: -2, bottom: -2, width: 24, height: 24, borderRadius: 12, backgroundColor: colors.brand, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: colors.surface },
+    avatarHint: { fontSize: 10.5, color: colors.faint, textAlign: "center", marginTop: 8 },
+    pwdRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, marginTop: 14 },
+    pwdText: { fontSize: 11, color: colors.faint },
     name: { fontSize: 18, fontWeight: "700", color: colors.ink, textAlign: "center", marginTop: 10 },
     meta: { fontSize: 11, color: colors.faint, textAlign: "center", marginTop: 4 },
     infoList: { marginTop: 16, borderTopWidth: 1, borderTopColor: colors.line },
