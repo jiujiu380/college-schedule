@@ -43,6 +43,15 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="tools"
+        options={{
+          title: "工具",
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? "apps" : "apps-outline"} color={String(color)} size={20} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="settings"
         options={{
           title: "我的",

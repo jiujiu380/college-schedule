@@ -209,22 +209,6 @@ export default function SettingsScreen() {
           <Text style={styles.rowValue}>网页 / 源码 / CSV</Text>
           <Ionicons name="chevron-forward" size={14} color={colors.faint} />
         </Pressable>
-        <Pressable style={[styles.row, styles.divider]} onPress={() => router.push("/announcements")}>
-          <Ionicons name="megaphone-outline" size={17} color={colors.sub} />
-          <Text style={styles.rowLabel}>公告</Text>
-          <Ionicons name="chevron-forward" size={14} color={colors.faint} />
-        </Pressable>
-        <Pressable style={[styles.row, styles.divider]} onPress={() => router.push("/tickets")}>
-          <Ionicons name="chatbubbles-outline" size={17} color={colors.sub} />
-          <Text style={styles.rowLabel}>工单反馈</Text>
-          <Ionicons name="chevron-forward" size={14} color={colors.faint} />
-        </Pressable>
-        <Pressable style={[styles.row, styles.divider]} onPress={() => router.push("/backup")}>
-          <Ionicons name="save-outline" size={17} color={colors.sub} />
-          <Text style={styles.rowLabel}>备份与恢复</Text>
-          <Text style={styles.rowValue}>{tables.length} 张课表</Text>
-          <Ionicons name="chevron-forward" size={14} color={colors.faint} />
-        </Pressable>
         <Pressable style={[styles.row, styles.divider]} onPress={() => router.push("/update")}>
           <Ionicons name="refresh-outline" size={17} color={colors.sub} />
           <Text style={styles.rowLabel}>检查更新</Text>
@@ -234,17 +218,6 @@ export default function SettingsScreen() {
         <Pressable style={[styles.row, styles.divider]} onPress={() => router.push("/agreement?view=1")}>
           <Ionicons name="document-text-outline" size={17} color={colors.sub} />
           <Text style={styles.rowLabel}>用户协议与隐私政策</Text>
-          <Ionicons name="chevron-forward" size={14} color={colors.faint} />
-        </Pressable>
-        <Pressable style={[styles.row, styles.divider]} onPress={() => router.push("/contact")}>
-          <Ionicons name="mail-outline" size={17} color={colors.sub} />
-          <Text style={styles.rowLabel}>联系作者</Text>
-          <Text style={styles.rowValue}>class.zcoow.cn</Text>
-          <Ionicons name="chevron-forward" size={14} color={colors.faint} />
-        </Pressable>
-        <Pressable style={[styles.row, styles.divider]} onPress={() => { void markTourSeen().then(() => {}); router.push("/home?tour=1"); }}>
-          <Ionicons name="help-circle-outline" size={17} color={colors.sub} />
-          <Text style={styles.rowLabel}>新手指引</Text>
           <Ionicons name="chevron-forward" size={14} color={colors.faint} />
         </Pressable>
         <Pressable style={styles.row} onPress={() => router.push("/sponsor")}>
