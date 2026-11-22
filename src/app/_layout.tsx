@@ -7,6 +7,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { loadAgreed } from "../lib/agreement";
 import { AuthProvider } from "../lib/auth";
 import { ensureChannel } from "../lib/notifications";
+import { AppRefreshProvider } from "../lib/app-refresh";
 import { ScheduleProvider } from "../lib/schedule-store";
 import { ThemeProvider, useTheme } from "../lib/theme-context";
 import { UpdateProvider } from "../lib/update-store";
@@ -78,7 +79,7 @@ function ThemedRoot() {
 
   return (
     <AuthProvider>
-      <ScheduleProvider>
+      <AppRefreshProvider><ScheduleProvider>
         <UpdateProvider>
           <StatusBar style={scheme === "dark" ? "light" : "dark"} />
           <View style={{ flex: 1, backgroundColor: scheme === "dark" ? "#000000" : "#E4E6EA", alignItems: "center" }}>
@@ -124,7 +125,7 @@ function ThemedRoot() {
             </View>
           </View>
         </UpdateProvider>
-      </ScheduleProvider>
+      </ScheduleProvider></AppRefreshProvider>
     </AuthProvider>
   );
 }

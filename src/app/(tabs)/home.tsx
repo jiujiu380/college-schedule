@@ -1,12 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import React, { useCallback, useMemo, useState } from "react";
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { FadeIn } from "../../components/Anim";
 import { ScreenStatusBar } from "../../components/ScreenStatusBar";
 import { TourOverlay, hasSeenTour } from "../../components/TourOverlay";
 import { currentNow } from "../../lib/clock";
+import { useGlobalRefresh, useRefreshTask } from "../../lib/app-refresh";
 import { useSchedule } from "../../lib/schedule-store";
 import { useTheme } from "../../lib/theme-context";
 import { currentPeriodNo, formatToday, todayWeekday } from "../../lib/time";
@@ -22,11 +23,22 @@ export default function HomeScreen() {
   const { tour } = useLocalSearchParams<{ tour?: string }>();
   const [announcement, setAnnouncement] = useState<Announcement | null>(null);
   const [tourVisible, setTourVisible] = useState(false);
+  const { refreshing, refresh } = useGlobalRefresh();
+
+  const loadAnnouncement = useCallback(async () => {
+    try {
+      const list = await fetchAnnouncements();
+      setAnnouncement(list.length ? list[0] : null);
+    } catch {
+      // 官网不可用时保留旧公告
+    }
+  }, []);
+
+  useFocusEffect(useCallback(() => { void loadAnnouncement(); }, [loadAnnouncement]));
+  useRefreshTask(loadAnnouncement);
+
   React.useEffect(() => {
     let alive = true;
-    fetchAnnouncements()
-      .then((list) => { if (alive && list.length) setAnnouncement(list[0]); })
-      .catch(() => {});
     hasSeenTour().then((seen) => {
       if (alive && !seen) setTimeout(() => setTourVisible(true), 700);
     });
@@ -49,7 +61,12 @@ export default function HomeScreen() {
   const nextCourse = todayList.find((c) => c.endPeriod >= (current ?? 0));
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ paddingTop: insets.top + 14, paddingBottom: 30 }} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      style={{ flex: 1, backgroundColor: colors.bg }}
+      contentContainerStyle={{ paddingTop: insets.top + 14, paddingBottom: 30 }}
+      showsVerticalScrollIndicator={false}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.brand} colors={[colors.brand]} />}
+    >
       <ScreenStatusBar style={scheme === "dark" ? "light" : "dark"} />
 
       <FadeIn>

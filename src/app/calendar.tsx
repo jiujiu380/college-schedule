@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScreenStatusBar } from "../components/ScreenStatusBar";
 import { CalendarEvent, addEvent, loadEvents, removeEvent } from "../lib/events";
@@ -32,7 +33,7 @@ export default function CalendarScreen() {
   const [title, setTitle] = useState("");
   const [time, setTime] = useState("09:00");
 
-  useEffect(() => { loadEvents().then(setEvents); }, []);
+  useFocusEffect(useCallback(() => { loadEvents().then(setEvents); }, []));
 
   const cells = useMemo(() => {
     const first = new Date(cursor.getFullYear(), cursor.getMonth(), 1);

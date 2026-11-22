@@ -1,10 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useMemo } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScreenStatusBar } from "../../components/ScreenStatusBar";
 import { useSchedule } from "../../lib/schedule-store";
+import { useGlobalRefresh } from "../../lib/app-refresh";
 import { useTheme } from "../../lib/theme-context";
 import { Colors, radius } from "../../theme";
 
@@ -44,9 +45,15 @@ export default function ToolsScreen() {
   const { colors, scheme } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { tables } = useSchedule();
+  const { refreshing, refresh } = useGlobalRefresh();
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ paddingTop: insets.top + 18, paddingHorizontal: 16, paddingBottom: 28 }} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      style={{ flex: 1, backgroundColor: colors.bg }}
+      contentContainerStyle={{ paddingTop: insets.top + 18, paddingHorizontal: 16, paddingBottom: 28 }}
+      showsVerticalScrollIndicator={false}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.brand} colors={[colors.brand]} />}
+    >
       <ScreenStatusBar style={scheme === "dark" ? "light" : "dark"} />
       <Text style={styles.title}>工具</Text>
       <Text style={styles.subtitle}>学习、服务与帮助都在这里</Text>

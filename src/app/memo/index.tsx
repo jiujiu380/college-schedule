@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import React, { useEffect, useMemo, useState } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import React, { useCallback, useMemo, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScreenStatusBar } from "../../components/ScreenStatusBar";
@@ -15,7 +15,7 @@ export default function MemoListScreen() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [memos, setMemos] = useState<Memo[]>([]);
 
-  useEffect(() => { loadMemos().then(setMemos); }, []);
+  useFocusEffect(useCallback(() => { loadMemos().then(setMemos); }, []));
 
   const remove = (id: string) => {
     Alert.alert("删除备忘录", "确定删除？", [

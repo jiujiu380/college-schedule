@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScreenStatusBar } from "../components/ScreenStatusBar";
 import { Ticket, createTicket, fetchTickets } from "../lib/site-api";
@@ -29,7 +30,7 @@ export default function TicketsScreen() {
     }
   };
 
-  useEffect(() => { void load(); }, []);
+  useFocusEffect(useCallback(() => { void load(); }, []));
 
   const submit = async () => {
     if (!title.trim() || !content.trim()) {

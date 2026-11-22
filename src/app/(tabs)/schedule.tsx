@@ -1,12 +1,14 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Animated, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Animated, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CourseEditor } from "../../components/CourseEditor";
 import { ScreenStatusBar } from "../../components/ScreenStatusBar";
 import { currentNow } from "../../lib/clock";
 import { useSchedule } from "../../lib/schedule-store";
+import { useGlobalRefresh, useRefreshTask } from "../../lib/app-refresh";
+import { writeWidgetData } from "../../lib/widget-data";
 import { Course } from "../../lib/schedule";
 import { useTheme } from "../../lib/theme-context";
 import { currentPeriodNo, formatToday, todayWeekday, WEEKDAYS } from "../../lib/time";
@@ -68,6 +70,18 @@ export default function ScheduleScreen() {
   const [editor, setEditor] = useState<{ visible: boolean; course: Course | null; weekday: number; start: number }>({ visible: false, course: null, weekday: 1, start: 1 });
   const [bubble, setBubble] = useState<{ day: number; period: number } | null>(null);
   const fade = useRef(new Animated.Value(1)).current;
+  const { refreshing, refresh } = useGlobalRefresh();
+
+  const syncWidget = useCallback(async () => {
+    await writeWidgetData({
+      tableName: activeTable.name,
+      week,
+      courses: activeTable.courses,
+      periods: activeTable.periods,
+      startDate: activeTable.startDate,
+    });
+  }, [activeTable, week]);
+  useRefreshTask(syncWidget);
 
   const dark = scheme === "dark";
   const colW = Math.max(38, (w - LABEL_W) / 7);
@@ -152,7 +166,11 @@ export default function ScheduleScreen() {
           <Pressable style={styles.emptyGhost} onPress={() => { addTable("课表 1"); router.push("/periods"); }}><Text style={styles.emptyGhostText}>新建空白课表</Text></Pressable>
         </View>
       ) : (
-        <ScrollView contentContainerStyle={{ paddingBottom: 12 }} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={{ paddingBottom: 12 }}
+          showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.brand} colors={[colors.brand]} />}
+        >
           <Animated.View style={{ opacity: fade }}>
             <View style={{ flexDirection: "row" }}>
               <View style={{ width: LABEL_W }} />
