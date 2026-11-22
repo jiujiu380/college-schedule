@@ -14,6 +14,11 @@ Notifications.setNotificationHandler({
 });
 
 const CHANNEL_ID = "class-reminders";
+const CHANNELS = [
+  { id: "class-reminders", name: "上课提醒" },
+  { id: "weather-alerts", name: "天气提醒" },
+  { id: "calendar-events", name: "日程提醒" },
+];
 export const NOTIFY_KEY = "college.notify.enabled.v1";
 const LEAD_KEY = "college.notify.lead.v1";
 
@@ -39,12 +44,14 @@ export async function setNotifyEnabled(on: boolean): Promise<void> {
 export async function ensureChannel(): Promise<void> {
   if (Platform.OS !== "android") return;
   try {
-    await Notifications.setNotificationChannelAsync(CHANNEL_ID, {
-      name: "上课提醒",
-      importance: Notifications.AndroidImportance.HIGH,
-      vibrationPattern: [0, 250, 220, 250],
-      lightColor: "#2F5BFF",
-    });
+    for (const ch of CHANNELS) {
+      await Notifications.setNotificationChannelAsync(ch.id, {
+        name: ch.name,
+        importance: Notifications.AndroidImportance.HIGH,
+        vibrationPattern: [0, 250, 220, 250],
+        lightColor: "#2F5BFF",
+      });
+    }
   } catch {
     // 渠道创建失败不阻塞启动
   }

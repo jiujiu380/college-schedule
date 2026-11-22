@@ -83,7 +83,7 @@ export default function UpdateScreen() {
         <View style={styles.statusLine}>
           <Ionicons name={result?.status === "available" ? "cloud-download-outline" : result?.notFound ? "information-circle-outline" : result?.status === "error" ? "alert-circle-outline" : "checkmark-circle-outline"} size={15} color={toneColor} />
           <Text style={styles.statusText}>{statusText}</Text>
-          {result ? <Text style={styles.metaText}>{result.source === "mirror" ? "镜像" : "GitHub"}{result.latencyMs ? ` · ${result.latencyMs}ms` : ""}</Text> : null}
+          {result ? <Text style={styles.metaText}>{result.source === "site" ? "官网" : result.source === "mirror" ? "镜像" : "GitHub"}{result.latencyMs ? ` · ${result.latencyMs}ms` : ""}</Text> : null}
         </View>
 
         {result?.error ? <Text style={[styles.errorText, result.notFound && { color: colors.sub }]}>{result.error}</Text> : null}
@@ -137,6 +137,15 @@ export default function UpdateScreen() {
           })}
         </View>
         <Text style={styles.mirrorNote}>公共镜像只能代理公开仓库的 Release；私有仓库无法通过公共镜像下载。清华 TUNA 的 github-release 仅镜像白名单仓库，不能作为通用 API 反代。</Text>
+
+        <Text style={[styles.fieldLabel, { marginTop: 14 }]}>更新来源</Text>
+        <View style={styles.segment}>
+          {([{ k: "site", l: "官网（默认）" }, { k: "github", l: "GitHub" }] as { k: "site" | "github"; l: string }[]).map((m) => (
+            <Pressable key={m.k} onPress={() => setDraft({ ...draft, source: m.k })} style={[styles.segmentItem, (draft.source ?? "site") === m.k && styles.segmentActive]}>
+              <Text style={[styles.segmentText, (draft.source ?? "site") === m.k && { color: colors.brand, fontWeight: "600" }]}>{m.l}</Text>
+            </Pressable>
+          ))}
+        </View>
 
         <Text style={[styles.fieldLabel, { marginTop: 14 }]}>更新接口地址</Text>
         <TextInput value={draft.apiBase} onChangeText={(v) => setDraft({ ...draft, apiBase: v })} placeholder="https://ghproxy.net/https://api.github.com" placeholderTextColor={colors.faint} autoCapitalize="none" autoCorrect={false} style={styles.input} />
@@ -196,6 +205,10 @@ const makeStyles = (colors: Colors) =>
     notes: { fontSize: 12, color: colors.sub, lineHeight: 19 },
     section: { fontSize: 12, color: colors.faint, marginTop: 20, marginBottom: 8, marginLeft: 2 },
     fieldLabel: { fontSize: 11.5, color: colors.sub, marginBottom: 6 },
+    segment: { flexDirection: "row", backgroundColor: colors.chipBg, borderRadius: radius.sm, padding: 2, gap: 2, marginBottom: 4 },
+    segmentItem: { flex: 1, paddingVertical: 7, borderRadius: 3, alignItems: "center" },
+    segmentActive: { backgroundColor: colors.surface },
+    segmentText: { fontSize: 12, color: colors.sub },
     input: { height: 38, borderWidth: 1, borderColor: colors.fieldBorder, borderRadius: radius.sm, paddingHorizontal: 10, fontSize: 12, color: colors.ink, backgroundColor: colors.fieldBg },
     switchRow: { flexDirection: "row", alignItems: "center", marginTop: 16, gap: 10 },
     switchLabel: { fontSize: 13, color: colors.ink },

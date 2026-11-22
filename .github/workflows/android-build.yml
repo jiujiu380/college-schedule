@@ -48,10 +48,10 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.ver.outputs.version }}-build-${{ github.run_number }}
-          name: 课表 v${{ steps.ver.outputs.version }} (build ${{ github.run_number }})
+          name: 知酷课程表 v${{ steps.ver.outputs.version }} (build ${{ github.run_number }})
           make_latest: true
           body: |
-            ### 课表 v${{ steps.ver.outputs.version }}（build ${{ github.run_number }}）
+            ### 知酷课程表 v${{ steps.ver.outputs.version }}（build ${{ github.run_number }}）
             - 自动构建的 Android 安装包（预览签名，可直接安装测试）
             - 安装前请允许「未知来源」
             - 应用内「我的 → 检查更新」会读取 Releases 最新版本

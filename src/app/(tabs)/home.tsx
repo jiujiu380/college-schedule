@@ -1,14 +1,16 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import React, { useMemo } from "react";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import React, { useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { FadeIn } from "../../components/Anim";
 import { ScreenStatusBar } from "../../components/ScreenStatusBar";
+import { TourOverlay, hasSeenTour } from "../../components/TourOverlay";
 import { currentNow } from "../../lib/clock";
 import { useSchedule } from "../../lib/schedule-store";
 import { useTheme } from "../../lib/theme-context";
 import { currentPeriodNo, formatToday, todayWeekday } from "../../lib/time";
+import { Announcement, fetchAnnouncements, htmlToText } from "../../lib/site-api";
 import { Colors } from "../../theme";
 
 export default function HomeScreen() {
@@ -17,6 +19,24 @@ export default function HomeScreen() {
   const { colors, scheme } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { courses, week, periods, activeTable } = useSchedule();
+  const { tour } = useLocalSearchParams<{ tour?: string }>();
+  const [announcement, setAnnouncement] = useState<Announcement | null>(null);
+  const [tourVisible, setTourVisible] = useState(false);
+  React.useEffect(() => {
+    let alive = true;
+    fetchAnnouncements()
+      .then((list) => { if (alive && list.length) setAnnouncement(list[0]); })
+      .catch(() => {});
+    hasSeenTour().then((seen) => {
+      if (alive && !seen) setTimeout(() => setTourVisible(true), 700);
+    });
+    return () => { alive = false; };
+  }, []);
+
+  React.useEffect(() => {
+    if (tour === "1") setTourVisible(true);
+  }, [tour]);
+
   const today = todayWeekday();
   const now = currentNow();
   const current = currentPeriodNo(periods, now);
@@ -43,6 +63,16 @@ export default function HomeScreen() {
           </View>
         </View>
       </FadeIn>
+
+      {announcement ? (
+        <FadeIn delay={30}>
+          <Pressable style={styles.annBar} onPress={() => router.push("/announcements")}>
+            <Ionicons name="megaphone-outline" size={15} color={colors.brand} />
+            <Text style={styles.annText} numberOfLines={1}>{announcement.title}</Text>
+            <Text style={styles.annMore}>查看</Text>
+          </Pressable>
+        </FadeIn>
+      ) : null}
 
       {nextCourse ? (
         <FadeIn delay={50}>
@@ -110,6 +140,8 @@ export default function HomeScreen() {
       </FadeIn>
 
       <Text style={styles.footer}>完全离线 · 数据只保存在本机</Text>
+
+      <TourOverlay visible={tourVisible} onDone={() => setTourVisible(false)} />
     </ScrollView>
   );
 }
@@ -122,6 +154,9 @@ const makeStyles = (colors: Colors) =>
     metaRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8 },
     meta: { fontSize: 12, color: colors.sub },
     metaDot: { fontSize: 12, color: colors.faint },
+    annBar: { flexDirection: "row", alignItems: "center", gap: 6, marginHorizontal: 18, marginTop: 14, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: colors.infoBorder, backgroundColor: colors.infoBg },
+    annText: { flex: 1, fontSize: 12, color: colors.ink },
+    annMore: { fontSize: 11.5, color: colors.brand, fontWeight: "600" },
     nextCard: { marginHorizontal: 18, marginTop: 18, padding: 16, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
     nextHead: { flexDirection: "row", alignItems: "center", gap: 6 },
     liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.success },

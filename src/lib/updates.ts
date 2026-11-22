@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
+import { fetchSiteUpdate } from "./site-api";
 
 export const REPO_OWNER = "jiujiu380";
 export const REPO_NAME = "college-schedule";
@@ -10,6 +11,8 @@ const CFG_KEY = "college.update.config.v1";
 const CACHE_KEY = "college.update.lastcheck.v1";
 
 export type UpdateConfig = {
+  /** 更新来源：官网优先，失败回退 GitHub */
+  source: "site" | "github";
   /** 更新接口镜像，留空表示直连 api.github.com。可填 https://ghproxy.net/https://api.github.com */
   apiBase: string;
   /** 下载站点镜像，留空表示直连 github.com */
@@ -21,6 +24,7 @@ export type UpdateConfig = {
 };
 
 export const DEFAULT_UPDATE_CONFIG: UpdateConfig = {
+  source: "site",
   apiBase: "",
   downloadBase: "",
   autoProbe: true,
@@ -45,7 +49,7 @@ export type CheckResult = {
   current: string;
   latest?: string;
   release?: ReleaseInfo;
-  source: "github" | "mirror";
+  source: "github" | "mirror" | "site";
   latencyMs?: number;
   error?: string;
   notFound?: boolean;
@@ -208,6 +212,35 @@ function parseRelease(data: any, cfg: UpdateConfig): ReleaseInfo {
  */
 export async function checkForUpdate(cfg: UpdateConfig): Promise<CheckResult> {
   const current = appVersion();
+
+  if (cfg.source === "site") {
+    try {
+      const site = await fetchSiteUpdate();
+      if (site) {
+        const newer = compareVersions(site.version, current) > 0;
+        const result: CheckResult = {
+          status: newer ? "available" : "latest",
+          current,
+          latest: site.version,
+          release: {
+            version: site.version,
+            tag: "site-" + site.version,
+            name: "官网 v" + site.version,
+            notes: site.notes ?? "",
+            apkUrl: site.url,
+            htmlUrl: site.url,
+            publishedAt: site.created_at,
+          },
+          source: "site",
+          checkedAt: Date.now(),
+        };
+        await saveCachedCheck(result);
+        return result;
+      }
+    } catch {
+      // 官网不可用时回退 GitHub
+    }
+  }
   const path = `/repos/${REPO_OWNER}/${REPO_NAME}/releases/latest`;
   const mirrorApi = cfg.apiBase.trim().replace(/\/$/, "");
   let base = GITHUB_API;
