@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 import React from "react";
 import { Platform } from "react-native";
+import { GlassTabBar } from "../../components/GlassTabBar";
 import { useTheme } from "../../lib/theme-context";
 
 export default function TabLayout() {
@@ -23,6 +24,7 @@ export default function TabLayout() {
         },
         tabBarLabelStyle: { fontSize: 10.5 },
       }}
+      tabBar={(props) => <GlassTabBar {...(props as any)} />}
     >
       <Tabs.Screen
         name="home"

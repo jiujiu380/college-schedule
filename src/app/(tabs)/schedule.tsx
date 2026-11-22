@@ -174,7 +174,7 @@ export default function ScheduleScreen() {
         </View>
       ) : (
         <ScrollView
-          contentContainerStyle={{ paddingBottom: 12 }}
+          contentContainerStyle={{ paddingBottom: 108 }}
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.brand} colors={[colors.brand]} />}
         >
