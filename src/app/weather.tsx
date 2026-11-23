@@ -6,10 +6,10 @@ import { ScreenStatusBar } from "../components/ScreenStatusBar";
 import {
   WeatherNow,
   isWeatherReminderOn,
-  getManualCity,
+  getManualLocation,
   loadWeather,
   scheduleWeatherReminder,
-  setManualCity,
+  setManualLocation,
   setWeatherReminderOn,
 } from "../lib/weather";
 import { useTheme } from "../lib/theme-context";
@@ -25,6 +25,7 @@ export default function WeatherScreen() {
   const [remind, setRemind] = useState(false);
   const [mode, setMode] = useState<"auto" | "manual">("auto");
   const [city, setCity] = useState("");
+  const [province, setProvince] = useState("");
 
   const load = async () => {
     setLoading(true);
@@ -43,9 +44,10 @@ export default function WeatherScreen() {
   };
 
   useEffect(() => {
-    getManualCity().then((c) => {
-      if (c) {
-        setCity(c);
+    getManualLocation().then((loc) => {
+      if (loc.city) {
+        setCity(loc.city);
+        setProvince(loc.province);
         setMode("manual");
       }
     });
@@ -55,21 +57,21 @@ export default function WeatherScreen() {
 
   const chooseAuto = async () => {
     setMode("auto");
-    await setManualCity("");
+    await setManualLocation("", "");
     void load();
   };
 
   const chooseManual = async () => {
     setMode("manual");
     if (city.trim()) {
-      await setManualCity(city.trim());
+      await setManualLocation(province.trim(), city.trim());
       void load();
     }
   };
 
   const saveCity = async () => {
     if (!city.trim()) return;
-    await setManualCity(city.trim());
+    await setManualLocation(province.trim(), city.trim());
     void load();
   };
 
@@ -98,12 +100,15 @@ export default function WeatherScreen() {
           </Pressable>
         </View>
         {mode === "manual" ? (
-          <View style={styles.cityRow}>
-            <TextInput value={city} onChangeText={setCity} placeholder="输入城市，如 呼和浩特" placeholderTextColor={colors.faint} style={styles.cityInput} />
-            <Pressable style={styles.cityBtn} onPress={saveCity}><Text style={styles.cityBtnText}>保存</Text></Pressable>
+          <View style={{ gap: 8, marginTop: 10 }}>
+            <TextInput value={province} onChangeText={setProvince} placeholder="省份，如 内蒙古" placeholderTextColor={colors.faint} style={styles.cityInput} />
+            <View style={styles.cityRow}>
+              <TextInput value={city} onChangeText={setCity} placeholder="城市，如 呼和浩特" placeholderTextColor={colors.faint} style={styles.cityInput} />
+              <Pressable style={styles.cityBtn} onPress={saveCity}><Text style={styles.cityBtnText}>保存</Text></Pressable>
+            </View>
           </View>
         ) : (
-          <Text style={styles.modeHint}>使用系统定位获取当前城市；也可以切换成手动城市。</Text>
+          <Text style={styles.modeHint}>自动通过 IP 接口获取当前省市；失败时再用系统定位兜底。</Text>
         )}
       </View>
 
@@ -127,7 +132,7 @@ export default function WeatherScreen() {
               <Text style={styles.temp}>{weather.temp}°</Text>
               <View style={{ marginLeft: 12 }}>
                 <Text style={styles.label}>{weather.label}</Text>
-                <Text style={styles.feels}>体感 {weather.feels}° · 湿度 {weather.humidity}% · 风速 {weather.wind}km/h</Text>
+                <Text style={styles.feels}>{weather.humidity >= 0 ? `体感 ${weather.feels}° · 湿度 ${weather.humidity}% · 风速 ${weather.wind}km/h` : `最高 ${weather.days[0]?.max ?? weather.temp}° · 最低 ${weather.days[0]?.min ?? weather.temp}°`}</Text>
               </View>
             </View>
             {weather.stale ? (
@@ -145,8 +150,8 @@ export default function WeatherScreen() {
             <View style={styles.days}>
               {weather.days.map((d, i) => (
                 <View key={d.date} style={styles.day}>
-                  <Text style={styles.dayName}>{i === 0 ? "今天" : i === 1 ? "明天" : "后天"}</Text>
-                  <Text style={styles.dayIcon}>{d.rain >= 60 ? "🌧" : d.code === 0 ? "☀️" : d.code <= 3 ? "⛅" : "☁️"}</Text>
+                  <Text style={styles.dayName}>{i === 0 ? "今天" : i === 1 ? "明天" : i === 2 ? "后天" : d.date ? d.date.slice(5) : "第" + (i + 1) + "天"}</Text>
+                  <Text style={styles.dayIcon}>{/雨|雪/.test(d.label) ? "🌧" : /阴|云|雾/.test(d.label) ? "⛅" : "☀️"}</Text>
                   <Text style={styles.dayTemp}>{d.min}° / {d.max}°</Text>
                   <Text style={styles.dayRain}>{d.rain}%</Text>
                 </View>

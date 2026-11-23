@@ -34,7 +34,7 @@ const GROUPS: { title: string; items: Item[] }[] = [
     title: "关于",
     items: [
       { icon: "mail-outline", label: "联系作者", desc: "class.zcoow.cn", route: "/contact", tint: "#2F5BFF" },
-      { icon: "help-circle-outline", label: "新手指引", desc: "重看操作引导", route: "/home?tour=1", tint: "#F59E0B" },
+      { icon: "heart-outline", label: "公益专栏", desc: "寻亲与公益捐赠", route: "/charity", tint: "#E11D48" },
       { icon: "heart-outline", label: "赞助支持", desc: "支持独立开发", route: "/sponsor", tint: "#E11D48" },
       { icon: "construct-outline", label: "开发者选项", desc: "推送 / 网络 / 同步调试", route: "/developer", tint: "#64748B" },
     ],

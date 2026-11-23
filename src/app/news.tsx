@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScreenStatusBar } from "../components/ScreenStatusBar";
@@ -17,7 +17,18 @@ export default function NewsScreen() {
   const [loading, setLoading] = useState(true);
   const [reload, setReload] = useState(0);
   const [error, setError] = useState(false);
+  const [ratio, setRatio] = useState(900 / 2833);
   const url = BASE + "?key=" + API_KEY + "&width=900&news_count=12&t=" + reload;
+
+  useEffect(() => {
+    Image.getSize(
+      url,
+      (w, h) => {
+        if (w > 0 && h > 0) setRatio(w / h);
+      },
+      () => {},
+    );
+  }, [url]);
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 28 }} showsVerticalScrollIndicator={false}>
@@ -35,9 +46,14 @@ export default function NewsScreen() {
         {loading ? <ActivityIndicator color={colors.brand} style={{ position: "absolute", alignSelf: "center", top: 40 }} /> : null}
         <Image
           source={{ uri: url }}
-          style={{ width: "100%", aspectRatio: 0.62 }}
-          resizeMode="cover"
-          onLoad={() => { setLoading(false); setError(false); }}
+          style={{ width: "100%", aspectRatio: ratio }}
+          resizeMode="contain"
+          onLoad={(e) => {
+            const src: any = (e as any).nativeEvent?.source;
+            if (src?.width && src?.height) setRatio(src.width / src.height);
+            setLoading(false);
+            setError(false);
+          }}
           onError={() => { setLoading(false); setError(true); }}
         />
       </View>

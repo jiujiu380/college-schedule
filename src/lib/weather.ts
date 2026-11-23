@@ -233,44 +233,156 @@ async function fetchOpenMeteo(lat: number, lon: number, city: string | null): Pr
   }
 }
 
+const MANUAL_PROVINCE_KEY = "college.weather.province.v1";
 const MANUAL_CITY_KEY = "college.weather.manualCity.v1";
 
-export async function getManualCity(): Promise<string> {
+export async function getManualLocation(): Promise<{ province: string; city: string }> {
   try {
-    return (await AsyncStorage.getItem(MANUAL_CITY_KEY)) || "";
+    const [province, city] = await Promise.all([
+      AsyncStorage.getItem(MANUAL_PROVINCE_KEY),
+      AsyncStorage.getItem(MANUAL_CITY_KEY),
+    ]);
+    return { province: province ?? "", city: city ?? "" };
   } catch {
-    return "";
+    return { province: "", city: "" };
   }
 }
 
-export async function setManualCity(city: string): Promise<void> {
-  await AsyncStorage.setItem(MANUAL_CITY_KEY, city.trim());
+export async function setManualLocation(province: string, city: string): Promise<void> {
+  await AsyncStorage.multiSet([
+    [MANUAL_PROVINCE_KEY, province.trim()],
+    [MANUAL_CITY_KEY, city.trim()],
+  ]);
 }
 
-async function fetchAa1Weather(city: string | null): Promise<WeatherNow | null> {
+export async function getManualCity(): Promise<string> {
+  return (await getManualLocation()).city;
+}
+
+export async function setManualCity(city: string): Promise<void> {
+  await setManualLocation("", city);
+}
+
+const EN_PROVINCE: Record<string, string> = {
+  "inner mongolia": "内蒙古", beijing: "北京", shanghai: "上海", tianjin: "天津", chongqing: "重庆",
+  guangdong: "广东", sichuan: "四川", zhejiang: "浙江", jiangsu: "江苏", hubei: "湖北", hunan: "湖南",
+  shaanxi: "陕西", shandong: "山东", henan: "河南", fujian: "福建", anhui: "安徽", jiangxi: "江西",
+  yunnan: "云南", guizhou: "贵州", guangxi: "广西", hainan: "海南", gansu: "甘肃", qinghai: "青海",
+  ningxia: "宁夏", xinjiang: "新疆", tibet: "西藏", liaoning: "辽宁", jilin: "吉林",
+  heilongjiang: "黑龙江", shanxi: "山西", hebei: "河北",
+};
+
+const EN_CITY: Record<string, string> = {
+  beijing: "北京", shanghai: "上海", tianjin: "天津", chongqing: "重庆", guangzhou: "广州",
+  shenzhen: "深圳", chengdu: "成都", hangzhou: "杭州", wuhan: "武汉", "xi'an": "西安", xian: "西安",
+  nanjing: "南京", suzhou: "苏州", qingdao: "青岛", jinan: "济南", zhengzhou: "郑州", changsha: "长沙",
+  kunming: "昆明", hefei: "合肥", fuzhou: "福州", xiamen: "厦门", ningbo: "宁波", shenyang: "沈阳",
+  dalian: "大连", harbin: "哈尔滨", changchun: "长春", shijiazhuang: "石家庄", taiyuan: "太原",
+  nanchang: "南昌", guiyang: "贵阳", nanning: "南宁", haikou: "海口", lanzhou: "兰州", xining: "西宁",
+  yinchuan: "银川", urumqi: "乌鲁木齐", lhasa: "拉萨", hohhot: "呼和浩特", baotou: "包头", ordos: "鄂尔多斯",
+};
+
+const PROVINCE_CAPITAL: Record<string, string> = {
+  内蒙古: "呼和浩特", 北京: "北京", 上海: "上海", 天津: "天津", 重庆: "重庆", 广东: "广州",
+  四川: "成都", 浙江: "杭州", 江苏: "南京", 湖北: "武汉", 湖南: "长沙", 陕西: "西安",
+  山东: "济南", 河南: "郑州", 福建: "福州", 安徽: "合肥", 江西: "南昌", 云南: "昆明",
+  贵州: "贵阳", 广西: "南宁", 海南: "海口", 甘肃: "兰州", 青海: "西宁", 宁夏: "银川",
+  新疆: "乌鲁木齐", 西藏: "拉萨", 辽宁: "沈阳", 吉林: "长春", 黑龙江: "哈尔滨",
+  山西: "太原", 河北: "石家庄",
+};
+
+function stripRegionSuffix(value: string): string {
+  return value.replace(/(特别行政区|壮族自治区|回族自治区|维吾尔自治区|自治区|省|市)$/g, "").trim();
+}
+
+function provinceForCity(city: string): string {
+  for (const [p, c] of Object.entries(PROVINCE_CAPITAL)) {
+    if (c === city) return p;
+  }
+  return "";
+}
+
+async function fetchJson(url: string, timeoutMs = 9000): Promise<any> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 9000);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const url = "https://v.api.aa1.cn/api/api-tianqi-6/" + (city ? "?city=" + encodeURIComponent(city) : "");
+    const res = await fetch(url, { signal: controller.signal });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function fetchIpLocation(): Promise<{ province: string; city: string } | null> {
+  let ipapi: any = null;
+  let ipipProvince = "";
+  await Promise.all([
+    fetchJson("https://api.ipapi.is/", 8000).then((j) => { ipapi = j; }),
+    fetchJson("https://myip.ipip.net/json", 8000).then((j) => {
+      ipipProvince = String(j?.data?.location?.[1] ?? "").trim();
+    }),
+  ]);
+
+  const region = String(ipapi?.region ?? "").toLowerCase();
+  const province = stripRegionSuffix(ipipProvince) || EN_PROVINCE[region] || "";
+  const cityEn = String(ipapi?.city ?? "").toLowerCase();
+  const city = EN_CITY[cityEn] || (province ? PROVINCE_CAPITAL[province] : "") || cityEn;
+  if (!province && !city) return null;
+  return { province: province || provinceForCity(city), city: city || province };
+}
+
+async function fetchMojiWeather(province: string, city: string | null): Promise<WeatherNow | null> {
+  if (!city) return null;
+  const sheng = province || provinceForCity(city) || city;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 12000);
+  try {
+    const url =
+      "https://cn.apihz.cn/api/tianqi/tqybmoji15.php?id=88888888&key=88888888" +
+      "&sheng=" + encodeURIComponent(sheng) +
+      "&place=" + encodeURIComponent(city);
     const res = await fetch(url, { signal: controller.signal });
     if (!res.ok) return null;
     const j: any = await res.json();
-    const tempRaw = String(j?.temperature ?? "");
-    const weather = String(j?.weather ?? "").trim();
-    const tempNum = Number((tempRaw.match(/-?\d+/) || [])[0]);
-    if (!weather || !Number.isFinite(tempNum)) return null;
-    const today = new Date();
-    const iso = today.getFullYear() + "-" + String(today.getMonth() + 1).padStart(2, "0") + "-" + String(today.getDate()).padStart(2, "0");
+    if (Number(j?.code) !== 200 || !Array.isArray(j?.data) || !j.data.length) return null;
+
+    const year = new Date().getFullYear();
+    const days: WeatherDay[] = j.data.slice(0, 7).map((d: any) => {
+      const md = String(d?.week2 ?? "");
+      const [mm, dd] = md.split("/").map(Number);
+      const date = mm && dd ? year + "-" + String(mm).padStart(2, "0") + "-" + String(dd).padStart(2, "0") : "";
+      const wea1 = String(d?.wea1 ?? "").trim();
+      const wea2 = String(d?.wea2 ?? "").trim();
+      const label = wea1 && wea2 && wea2 !== wea1 ? wea1 + "转" + wea2 : wea1 || wea2 || "未知";
+      const max = Math.round(Number(String(d?.wendu1 ?? "").replace(/[^\d-]/g, "")));
+      const min = Math.round(Number(String(d?.wendu2 ?? "").replace(/[^\d-]/g, "")));
+      return {
+        date,
+        code: 0,
+        label,
+        min: Number.isFinite(min) ? min : max,
+        max: Number.isFinite(max) ? max : min,
+        rain: /雨|雪|雷/.test(label) ? 60 : 0,
+      };
+    });
+    if (!days.length) return null;
+
+    const today = days[0];
+    const temp = Math.round((today.min + today.max) / 2);
+    const rainy = /雨|雪|雷/.test(today.label);
     return {
-      city: String(j?.city ?? city ?? "当前位置"),
-      temp: tempNum,
-      feels: tempNum,
-      humidity: 0,
-      wind: 0,
+      city: String(j?.place ?? city),
+      temp,
+      feels: temp,
+      humidity: -1,
+      wind: -1,
       code: 0,
-      label: weather,
-      rainAlert: /雨/.test(weather) ? "今天有雨，出门记得带伞" : /雪/.test(weather) ? "今天有雪，注意保暖" : null,
-      days: [{ date: iso, code: 0, label: weather, min: tempNum, max: tempNum, rain: /雨|雪/.test(weather) ? 60 : 0 }],
+      label: today.label,
+      rainAlert: rainy ? "今天有雨雪，出门记得带伞并注意保暖" : null,
+      days,
       updatedAt: Date.now(),
     };
   } catch {
@@ -281,40 +393,59 @@ async function fetchAa1Weather(city: string | null): Promise<WeatherNow | null> 
 }
 
 export async function loadWeather(): Promise<WeatherNow> {
-  const manual = await getManualCity();
-  let city: string | null = manual || null;
+  const manual = await getManualLocation();
+  let province = manual.province;
+  let city: string | null = manual.city || null;
   let coords: { latitude: number; longitude: number } | null = null;
 
-  if (manual) {
+  // 自动模式：先通过 IP 接口获取省市；失败再用系统定位兜底
+  if (!city) {
+    const ip = await fetchIpLocation();
+    if (ip) {
+      province = ip.province;
+      city = ip.city;
+    }
+  }
+
+  if (!city) {
+    const perm = await Location.requestForegroundPermissionsAsync();
+    if (perm.granted) {
+      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      coords = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+      try {
+        const geo = await Location.reverseGeocodeAsync(coords);
+        if (geo.length) {
+          city = geo[0].city || geo[0].district || geo[0].region || "当前位置";
+          province = stripRegionSuffix(String(geo[0].region ?? ""));
+        }
+      } catch {
+        city = "当前位置";
+      }
+    }
+  }
+
+  if (!city) {
+    const cached = await readCache();
+    if (cached) return { ...cached, stale: true };
+    throw new Error("无法获取当前位置，可切换为手动城市");
+  }
+
+  if (!province) province = provinceForCity(city);
+  if (!coords) {
     try {
-      const geo = await Location.geocodeAsync(manual);
+      const geo = await Location.geocodeAsync(city);
       if (geo.length) coords = { latitude: geo[0].latitude, longitude: geo[0].longitude };
     } catch {
       coords = null;
     }
-  } else {
-    const perm = await Location.requestForegroundPermissionsAsync();
-    if (!perm.granted) {
-      const cached = await readCache();
-      if (cached) return { ...cached, stale: true };
-      throw new Error("没有定位权限，可在天气页切换为手动城市");
-    }
-    const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-    coords = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
-    try {
-      const geo = await Location.reverseGeocodeAsync(coords);
-      if (geo.length) city = geo[0].city || geo[0].district || geo[0].region || "当前位置";
-    } catch {
-      city = "当前位置";
-    }
-    if (city) await setWeatherCity(city);
   }
+  await setWeatherCity(city);
 
-  // 1) 夏柔天气（按城市）
-  const aa1 = await fetchAa1Weather(city);
-  if (aa1) {
-    await saveCache(aa1);
-    return aa1;
+  // 1) 墨迹天气 15 日（接口盒子）
+  const moji = await fetchMojiWeather(province, city);
+  if (moji) {
+    await saveCache(moji);
+    return moji;
   }
 
   // 2) 中央气象台
