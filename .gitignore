@@ -42,3 +42,6 @@ yarn-error.*
 # local artifacts
 .shots/
 .tmp/
+# desktop build artifacts
+/desktop/out
+/desktop/web

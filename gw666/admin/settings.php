@@ -4,7 +4,7 @@ $title = '网站设置';
 $saved = false;
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   check_csrf();
-  $keys = ['site_name','site_desc','seo_keywords','seo_description','download_url','contact_email','contact_qq','contact_wechat','contact_site','logo_text','captcha_id','captcha_key','smtp_enabled','smtp_host','smtp_port','smtp_secure','smtp_user','smtp_pass','smtp_from','smtp_from_name','sms_provider','aliyun_access_key_id','aliyun_access_key_secret','aliyun_sign_name','aliyun_template_code','aliyun_region','aliyun_template_param','aliyun_scheme_name','smsbao_user','smsbao_pass','smsbao_content','tencent_secret_id','tencent_secret_key','tencent_sms_app_id','tencent_sign_name','tencent_template_id','tencent_region'];
+  $keys = ['site_name','site_desc','seo_keywords','seo_description','download_url','download_windows_url','contact_email','contact_qq','contact_wechat','contact_site','logo_text','captcha_id','captcha_key','smtp_enabled','smtp_host','smtp_port','smtp_secure','smtp_user','smtp_pass','smtp_from','smtp_from_name','sms_provider','aliyun_access_key_id','aliyun_access_key_secret','aliyun_sign_name','aliyun_template_code','aliyun_region','aliyun_template_param','aliyun_scheme_name','smsbao_user','smsbao_pass','smsbao_content','tencent_secret_id','tencent_secret_key','tencent_sms_app_id','tencent_sign_name','tencent_template_id','tencent_region'];
   foreach ($keys as $k) set_setting($k, trim((string)($_POST[$k] ?? '')));
   set_setting('captcha_enabled', isset($_POST['captcha_enabled']) ? '1' : '0');
   if (!empty($_FILES['logo']['tmp_name'])) {
@@ -30,7 +30,8 @@ require __DIR__ . '/layout_top.php';
   <label>文字 Logo（未上传图片时显示，留空取网站名首字）</label><input name="logo_text" value="<?= e(setting('logo_text')) ?>" maxlength="4">
   <label>Logo（png/jpg/svg）</label><input type="file" name="logo" accept="image/*">
   <?php if (setting('logo')): ?><p class="muted">当前：<img src="../<?= e(setting('logo')) ?>" style="height:36px;vertical-align:middle;border-radius:8px"></p><?php endif; ?>
-  <label>下载地址（APK）</label><input name="download_url" value="<?= e(setting('download_url')) ?>">
+  <label>下载地址（Android APK）</label><input name="download_url" value="<?= e(setting('download_url')) ?>">
+  <label>下载地址（Windows 桌面版 exe/zip，选填）</label><input name="download_windows_url" value="<?= e(setting('download_windows_url')) ?>">
 
   <h2 class="mt">SEO</h2>
   <label>关键词</label><input name="seo_keywords" value="<?= e(setting('seo_keywords')) ?>">

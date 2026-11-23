@@ -6,6 +6,7 @@ $desc = setting('site_desc');
 $logo = setting('logo');
 $logoText = setting('logo_text') ?: mb_substr($name, 0, 1);
 $download = setting('download_url');
+$winDownload = setting('download_windows_url');
 $keywords = setting('seo_keywords');
 $seoDesc = setting('seo_description');
 $email = setting('contact_email');
@@ -194,6 +195,7 @@ footer{border-top:1px solid var(--line);background:#fff}
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M4 19h16"/></svg>
         下载 Android 版
       </a>
+      <?php if ($winDownload): ?><a class="btn btn-ghost" href="<?= e($winDownload) ?>">下载 Windows 版</a><?php endif; ?>
       <a class="btn btn-ghost" href="#features">查看功能</a>
     </div>
     <div class="trust">

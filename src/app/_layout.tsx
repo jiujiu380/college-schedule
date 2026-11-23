@@ -102,7 +102,7 @@ function ThemedRoot() {
               style={{
                 flex: 1,
                 width: "100%",
-                maxWidth: Platform.OS === "web" ? 440 : undefined,
+                maxWidth: Platform.OS === "web" ? 1100 : undefined,
                 backgroundColor: colors.surface,
                 overflow: "hidden",
               }}

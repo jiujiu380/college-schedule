@@ -10,6 +10,17 @@ export type TableUi = {
   dividers: boolean;
 };
 
+export type CourseMove = {
+  id: string;
+  courseId: string;
+  fromWeek: number;
+  toWeek: number;
+  toWeekday: number;
+  toStart: number;
+  toEnd: number;
+  createdAt: number;
+};
+
 export type Timetable = {
   id: string;
   name: string;
@@ -22,6 +33,7 @@ export type Timetable = {
   createdAt: string;
   updatedAt: string;
   source?: "demo" | "import" | "api";
+  moves?: CourseMove[];
 };
 
 const KEY = "college.timetables.v1";

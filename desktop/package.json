@@ -1,0 +1,45 @@
+{
+  "name": "zhiku-desktop",
+  "version": "1.3.2",
+  "private": true,
+  "description": "知酷课程表 Windows 桌面版",
+  "author": "知酷课程表",
+  "main": "main.js",
+  "scripts": {
+    "prepare-web": "node prepare-web.js",
+    "start": "electron .",
+    "dist": "npm run prepare-web && electron-builder --win portable"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "cn.zcoow.zhiku",
+    "productName": "知酷课程表",
+    "copyright": "Copyright © 2026 知酷课程表",
+    "directories": {
+      "output": "out",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "web/**/*",
+      "build/icon.ico"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "portable": {
+      "artifactName": "zhiku-desktop-${version}.exe"
+    }
+  }
+}

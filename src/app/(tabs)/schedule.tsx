@@ -108,7 +108,27 @@ export default function ScheduleScreen() {
     [week, currentWeek, nowWeekday, activeGroup],
   );
 
-  const active = useMemo(() => courses.filter((c) => c.weeks.includes(week)), [courses, week]);
+  const moves = useMemo(() => activeTable.moves ?? [], [activeTable.moves]);
+  const active = useMemo(() => {
+    const movedOut = new Set(moves.filter((m) => m.fromWeek === week).map((m) => m.courseId));
+    const base = courses.filter((c) => c.weeks.includes(week) && !movedOut.has(c.id));
+    const movedIn = moves
+      .filter((m) => m.toWeek === week)
+      .map((m) => {
+        const origin = courses.find((c) => c.id === m.courseId);
+        if (!origin) return null;
+        return {
+          ...origin,
+          id: origin.id + "@move@" + m.id,
+          weekday: m.toWeekday,
+          startPeriod: m.toStart,
+          endPeriod: m.toEnd,
+          weeks: [week],
+        };
+      })
+      .filter((c): c is Course => Boolean(c));
+    return [...base, ...movedIn];
+  }, [courses, week, moves]);
   const offWeek = useMemo(() => courses.filter((c) => !c.weeks.includes(week)), [courses, week]);
 
   const blocksByDay = useMemo(() => WEEKDAYS.map((_, i) => layoutDay(active.filter((c) => c.weekday === i + 1))), [active]);
@@ -145,12 +165,17 @@ export default function ScheduleScreen() {
         <View style={styles.titleRow}>
           <Pressable style={styles.tableTitle} onPress={() => setSwitcher(true)}>
             <Text style={styles.title} numberOfLines={1}>{activeTable.name}</Text>
-            <Ionicons name="chevron-down" size={15} color={colors.sub} />
+            <Ionicons name="chevron-down" size={15} color={colors.sub} style={{ marginLeft: 2 }} />
           </Pressable>
-          <Pressable style={styles.importBtn} onPress={() => router.push("/import")}>
-            <Ionicons name="add" size={15} color={colors.brand} />
-            <Text style={styles.importText}>导入</Text>
-          </Pressable>
+          <View style={styles.headerActions}>
+            <Pressable style={styles.importBtn} onPress={() => router.push("/import")}>
+              <Ionicons name="add" size={15} color={colors.brand} />
+              <Text style={styles.importText}>导入</Text>
+            </Pressable>
+            <Pressable style={styles.todayBtn} onPress={() => setWeek(currentWeek)}>
+              <Text style={styles.todayText}>今日</Text>
+            </Pressable>
+          </View>
         </View>
         <Text style={styles.subtitle}>{formatToday()} · 共 {activeTable.totalWeeks} 周</Text>
 
@@ -382,9 +407,12 @@ export default function ScheduleScreen() {
 const makeStyles = (colors: Colors) =>
   StyleSheet.create({
     header: { paddingHorizontal: 16, paddingBottom: 12 },
-    titleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-    tableTitle: { flexDirection: "row", alignItems: "center", gap: 4, flex: 1 },
-    title: { fontSize: 24, fontWeight: "800", color: colors.ink, letterSpacing: -0.5 },
+    titleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
+    headerActions: { alignItems: "flex-end", gap: 6, flexShrink: 0 },
+    todayBtn: { paddingHorizontal: 9, paddingVertical: 3, borderRadius: 7, backgroundColor: colors.chipBg },
+    todayText: { fontSize: 10.5, color: colors.sub, fontWeight: "500" },
+    tableTitle: { flexDirection: "row", alignItems: "center", gap: 2, flex: 1, minWidth: 0 },
+    title: { fontSize: 22, fontWeight: "800", color: colors.ink, letterSpacing: -0.5, flexShrink: 1 },
     importBtn: { flexDirection: "row", alignItems: "center", gap: 2, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, backgroundColor: colors.brandSoft },
     importText: { fontSize: 12.5, color: colors.brand, fontWeight: "600" },
     subtitle: { fontSize: 12, color: colors.faint, marginTop: 5 },
