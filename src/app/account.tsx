@@ -142,7 +142,7 @@ export default function AccountScreen() {
       Alert.alert("没有相册权限", "请在系统设置中允许访问照片。");
       return;
     }
-    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], allowsEditing: true, aspect: [1, 1], quality: 0.6, base64: true });
+    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], allowsEditing: true, aspect: [1, 1], quality: 0.45, base64: true });
     if (res.canceled) return;
     const asset = res.assets[0];
     setAvatarLocal(asset.uri);

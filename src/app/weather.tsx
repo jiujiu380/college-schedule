@@ -1,13 +1,15 @@
 import { Ionicons } from "@expo/vector-icons";
 import React, { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScreenStatusBar } from "../components/ScreenStatusBar";
 import {
   WeatherNow,
   isWeatherReminderOn,
+  getManualCity,
   loadWeather,
   scheduleWeatherReminder,
+  setManualCity,
   setWeatherReminderOn,
 } from "../lib/weather";
 import { useTheme } from "../lib/theme-context";
@@ -21,6 +23,8 @@ export default function WeatherScreen() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [remind, setRemind] = useState(false);
+  const [mode, setMode] = useState<"auto" | "manual">("auto");
+  const [city, setCity] = useState("");
 
   const load = async () => {
     setLoading(true);
@@ -39,9 +43,35 @@ export default function WeatherScreen() {
   };
 
   useEffect(() => {
+    getManualCity().then((c) => {
+      if (c) {
+        setCity(c);
+        setMode("manual");
+      }
+    });
     void load();
     isWeatherReminderOn().then(setRemind);
   }, []);
+
+  const chooseAuto = async () => {
+    setMode("auto");
+    await setManualCity("");
+    void load();
+  };
+
+  const chooseManual = async () => {
+    setMode("manual");
+    if (city.trim()) {
+      await setManualCity(city.trim());
+      void load();
+    }
+  };
+
+  const saveCity = async () => {
+    if (!city.trim()) return;
+    await setManualCity(city.trim());
+    void load();
+  };
 
   const toggleRemind = async (on: boolean) => {
     setRemind(on);
@@ -55,6 +85,27 @@ export default function WeatherScreen() {
   return (
     <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 24 }} showsVerticalScrollIndicator={false}>
       <ScreenStatusBar style={scheme === "dark" ? "light" : "dark"} />
+
+      <View style={styles.card}>
+        <View style={styles.modeRow}>
+          <Pressable style={[styles.modeBtn, mode === "auto" && styles.modeActive]} onPress={chooseAuto}>
+            <Ionicons name="locate-outline" size={14} color={mode === "auto" ? colors.brand : colors.sub} />
+            <Text style={[styles.modeText, mode === "auto" && { color: colors.brand, fontWeight: "600" }]}>自动定位</Text>
+          </Pressable>
+          <Pressable style={[styles.modeBtn, mode === "manual" && styles.modeActive]} onPress={chooseManual}>
+            <Ionicons name="map-outline" size={14} color={mode === "manual" ? colors.brand : colors.sub} />
+            <Text style={[styles.modeText, mode === "manual" && { color: colors.brand, fontWeight: "600" }]}>手动城市</Text>
+          </Pressable>
+        </View>
+        {mode === "manual" ? (
+          <View style={styles.cityRow}>
+            <TextInput value={city} onChangeText={setCity} placeholder="输入城市，如 呼和浩特" placeholderTextColor={colors.faint} style={styles.cityInput} />
+            <Pressable style={styles.cityBtn} onPress={saveCity}><Text style={styles.cityBtnText}>保存</Text></Pressable>
+          </View>
+        ) : (
+          <Text style={styles.modeHint}>使用系统定位获取当前城市；也可以切换成手动城市。</Text>
+        )}
+      </View>
 
       <View style={styles.card}>
         <View style={styles.head}>
@@ -115,7 +166,7 @@ export default function WeatherScreen() {
         </View>
       </View>
 
-      <Text style={styles.footer}>天气数据来自中央气象台（weather.cma.cn），不可用时自动切换备用源；定位仅用于获取本地天气。</Text>
+      <Text style={styles.footer}>天气数据优先来自夏柔天气接口，失败自动切换中央气象台 / Open-Meteo；定位仅用于获取本地天气。</Text>
     </ScrollView>
   );
 }
@@ -123,6 +174,15 @@ export default function WeatherScreen() {
 const makeStyles = (colors: Colors) =>
   StyleSheet.create({
     card: { backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, padding: 16, marginBottom: 12 },
+    modeRow: { flexDirection: "row", backgroundColor: colors.chipBg, borderRadius: radius.sm, padding: 3, gap: 2 },
+    modeBtn: { flex: 1, height: 34, borderRadius: 6, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4 },
+    modeActive: { backgroundColor: colors.surface },
+    modeText: { fontSize: 12, color: colors.sub },
+    modeHint: { fontSize: 10.5, color: colors.faint, marginTop: 10, lineHeight: 16 },
+    cityRow: { flexDirection: "row", gap: 8, marginTop: 10 },
+    cityInput: { flex: 1, height: 42, borderWidth: 1, borderColor: colors.fieldBorder, borderRadius: radius.sm, paddingHorizontal: 10, fontSize: 13, color: colors.ink, backgroundColor: colors.fieldBg },
+    cityBtn: { width: 64, height: 42, borderRadius: radius.sm, backgroundColor: colors.brand, alignItems: "center", justifyContent: "center" },
+    cityBtnText: { color: "#FFFFFF", fontSize: 12.5, fontWeight: "600" },
     head: { flexDirection: "row", alignItems: "center" },
     city: { fontSize: 15, fontWeight: "600", color: colors.ink },
     updated: { fontSize: 10.5, color: colors.faint, marginTop: 3 },

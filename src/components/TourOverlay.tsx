@@ -1,9 +1,9 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Modal, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { useTheme } from "../lib/theme-context";
 
-const KEY = "college.onboard.v1";
+const KEY = "college.onboard.v2";
 
 export type TourStep = {
   title: string;
@@ -15,9 +15,12 @@ export type TourStep = {
 };
 
 export const HOME_TOUR: TourStep[] = [
-  { title: "今日课程", text: "这里显示今天的课和下一节课，点卡片可以查看详情。", top: 0.2, height: 0.18 },
-  { title: "快捷入口", text: "导入课表、调整外观和提醒都在这里。", top: 0.37, height: 0.1 },
-  { title: "底部导航", text: "主站看今天，课表看整周，「我的」里改设置。", top: 0.915, height: 0.075 },
+  { title: "今日课程", text: "这里显示今天要上的课和下一节课。点课程卡片可以看教室、教师和周次；上完的课会变淡。", top: 0.29, height: 0.21 },
+  { title: "每日一言", text: "每天一句短句，下拉主站或点刷新会换一条。", top: 0.14, height: 0.12 },
+  { title: "导入课表", text: "点这里导入课表：可以在网页里登录教务系统识别，也可以粘贴源码、选 Excel / CSV / JSON 文件。导入前还能逐条改课程。", top: 0.51, height: 0.08 },
+  { title: "课表标签", text: "底部「课表」看整周。长按空白格加课，长按课程编辑；两门课冲突时会自动并排显示，非本周课程会淡化并标气泡。", top: 0.9, height: 0.09, left: 0.2, width: 0.3 },
+  { title: "工具标签", text: "「工具」里有天气、日历、备忘录、每日新闻、公告、工单反馈、备份和更新。", top: 0.9, height: 0.09, left: 0.45, width: 0.3 },
+  { title: "我的标签", text: "「我的」管理账号、主题配色、开学时间、节次时间和上课提醒；后台保活也在里面。", top: 0.9, height: 0.09, left: 0.7, width: 0.3 },
 ];
 
 export async function hasSeenTour(): Promise<boolean> {
@@ -32,6 +35,10 @@ export function TourOverlay({ visible, steps = HOME_TOUR, onDone }: { visible: b
   const { colors } = useTheme();
   const { width, height } = useWindowDimensions();
   const [index, setIndex] = useState(0);
+
+  useEffect(() => {
+    if (visible) void markTourSeen();
+  }, [visible]);
   const step = steps[Math.min(index, steps.length - 1)];
   const rect = useMemo(() => {
     const left = step.left == null ? 16 : step.left * width;

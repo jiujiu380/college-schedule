@@ -125,6 +125,7 @@ function ThemedRoot() {
                 <Stack.Screen name="background" options={{ ...headerOptions, title: "后台保活" }} />
                 <Stack.Screen name="account" options={{ ...headerOptions, title: "账号" }} />
                 <Stack.Screen name="forgot-password" options={{ ...headerOptions, title: "忘记密码" }} />
+                <Stack.Screen name="news" options={{ ...headerOptions, title: "每日新闻" }} />
                 <Stack.Screen name="contact" options={{ ...headerOptions, title: "联系作者" }} />
                 <Stack.Screen name="announcements" options={{ ...headerOptions, title: "公告" }} />
                 <Stack.Screen name="tickets" options={{ ...headerOptions, title: "工单反馈" }} />

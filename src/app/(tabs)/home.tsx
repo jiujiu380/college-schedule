@@ -12,6 +12,7 @@ import { useSchedule } from "../../lib/schedule-store";
 import { useTheme } from "../../lib/theme-context";
 import { currentPeriodNo, formatToday, todayWeekday } from "../../lib/time";
 import { Announcement, fetchAnnouncements, htmlToText } from "../../lib/site-api";
+import { loadQuote } from "../../lib/quote";
 import { Colors } from "../../theme";
 
 export default function HomeScreen() {
@@ -22,6 +23,7 @@ export default function HomeScreen() {
   const { courses, week, periods, activeTable } = useSchedule();
   const { tour } = useLocalSearchParams<{ tour?: string }>();
   const [announcement, setAnnouncement] = useState<Announcement | null>(null);
+  const [quote, setQuote] = useState("");
   const [tourVisible, setTourVisible] = useState(false);
   const { refreshing, refresh } = useGlobalRefresh();
 
@@ -34,8 +36,14 @@ export default function HomeScreen() {
     }
   }, []);
 
-  useFocusEffect(useCallback(() => { void loadAnnouncement(); }, [loadAnnouncement]));
-  useRefreshTask(loadAnnouncement);
+  useFocusEffect(useCallback(() => {
+    void loadAnnouncement();
+    loadQuote().then(setQuote).catch(() => {});
+  }, [loadAnnouncement]));
+  useRefreshTask(async () => {
+    await loadAnnouncement();
+    setQuote(await loadQuote(true));
+  });
 
   React.useEffect(() => {
     let alive = true;
@@ -105,6 +113,16 @@ export default function HomeScreen() {
         </FadeIn>
       ) : null}
 
+      {quote ? (
+        <FadeIn delay={80}>
+          <View style={[styles.quoteCard, { backgroundColor: colors.surface, borderColor: colors.line }]}>
+            <Text style={[styles.quoteMark, { color: colors.brand }]}>“</Text>
+            <Text style={[styles.quoteText, { color: colors.ink }]}>{quote}</Text>
+            <Text style={[styles.quoteFrom, { color: colors.faint }]}>每日一言 · 夏柔 API</Text>
+          </View>
+        </FadeIn>
+      ) : null}
+
       <FadeIn delay={100}>
         <View style={styles.sectionHead}>
           <Text style={styles.sectionTitle}>今日课程</Text>
@@ -171,6 +189,10 @@ const makeStyles = (colors: Colors) =>
     metaRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8 },
     meta: { fontSize: 12, color: colors.sub },
     metaDot: { fontSize: 12, color: colors.faint },
+    quoteCard: { marginHorizontal: 18, marginTop: 14, borderRadius: 16, borderWidth: 1, padding: 14, paddingLeft: 18 },
+    quoteMark: { position: "absolute", left: 4, top: 2, fontSize: 26, fontWeight: "700", opacity: 0.3 },
+    quoteText: { fontSize: 13.5, lineHeight: 22, fontWeight: "500" },
+    quoteFrom: { fontSize: 10, marginTop: 8 },
     annBar: { flexDirection: "row", alignItems: "center", gap: 6, marginHorizontal: 18, marginTop: 14, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: colors.infoBorder, backgroundColor: colors.infoBg },
     annText: { flex: 1, fontSize: 12, color: colors.ink },
     annMore: { fontSize: 11.5, color: colors.brand, fontWeight: "600" },

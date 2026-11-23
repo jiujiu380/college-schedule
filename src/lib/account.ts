@@ -137,7 +137,11 @@ export async function refreshAccount(): Promise<AccountUser | null> {
 export async function updateProfile(input: { nickname?: string; avatarBase64?: string }): Promise<AccountUser> {
   const token = await getAccountToken();
   if (!token) throw new Error("请先登录");
-  const data = await postJson("/api.php?action=update_profile", { token, ...input });
+  const data = await postJson("/api.php?action=update_profile", {
+    token,
+    nickname: input.nickname,
+    avatar_base64: input.avatarBase64,
+  });
   await saveSession(token, data.user);
   return data.user as AccountUser;
 }

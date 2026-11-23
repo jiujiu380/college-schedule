@@ -233,21 +233,76 @@ async function fetchOpenMeteo(lat: number, lon: number, city: string | null): Pr
   }
 }
 
-export async function loadWeather(): Promise<WeatherNow> {
-  const perm = await Location.requestForegroundPermissionsAsync();
-  if (!perm.granted) {
-    const cached = await readCache();
-    if (cached) return { ...cached, stale: true };
-    throw new Error("没有定位权限，无法获取本地天气");
+const MANUAL_CITY_KEY = "college.weather.manualCity.v1";
+
+export async function getManualCity(): Promise<string> {
+  try {
+    return (await AsyncStorage.getItem(MANUAL_CITY_KEY)) || "";
+  } catch {
+    return "";
   }
+}
 
-  const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-  const { latitude, longitude } = pos.coords;
+export async function setManualCity(city: string): Promise<void> {
+  await AsyncStorage.setItem(MANUAL_CITY_KEY, city.trim());
+}
 
-  let city = await getWeatherCity();
-  if (!city) {
+async function fetchAa1Weather(city: string | null): Promise<WeatherNow | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 9000);
+  try {
+    const url = "https://v.api.aa1.cn/api/api-tianqi-6/" + (city ? "?city=" + encodeURIComponent(city) : "");
+    const res = await fetch(url, { signal: controller.signal });
+    if (!res.ok) return null;
+    const j: any = await res.json();
+    const tempRaw = String(j?.temperature ?? "");
+    const weather = String(j?.weather ?? "").trim();
+    const tempNum = Number((tempRaw.match(/-?\d+/) || [])[0]);
+    if (!weather || !Number.isFinite(tempNum)) return null;
+    const today = new Date();
+    const iso = today.getFullYear() + "-" + String(today.getMonth() + 1).padStart(2, "0") + "-" + String(today.getDate()).padStart(2, "0");
+    return {
+      city: String(j?.city ?? city ?? "当前位置"),
+      temp: tempNum,
+      feels: tempNum,
+      humidity: 0,
+      wind: 0,
+      code: 0,
+      label: weather,
+      rainAlert: /雨/.test(weather) ? "今天有雨，出门记得带伞" : /雪/.test(weather) ? "今天有雪，注意保暖" : null,
+      days: [{ date: iso, code: 0, label: weather, min: tempNum, max: tempNum, rain: /雨|雪/.test(weather) ? 60 : 0 }],
+      updatedAt: Date.now(),
+    };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export async function loadWeather(): Promise<WeatherNow> {
+  const manual = await getManualCity();
+  let city: string | null = manual || null;
+  let coords: { latitude: number; longitude: number } | null = null;
+
+  if (manual) {
     try {
-      const geo = await Location.reverseGeocodeAsync({ latitude, longitude });
+      const geo = await Location.geocodeAsync(manual);
+      if (geo.length) coords = { latitude: geo[0].latitude, longitude: geo[0].longitude };
+    } catch {
+      coords = null;
+    }
+  } else {
+    const perm = await Location.requestForegroundPermissionsAsync();
+    if (!perm.granted) {
+      const cached = await readCache();
+      if (cached) return { ...cached, stale: true };
+      throw new Error("没有定位权限，可在天气页切换为手动城市");
+    }
+    const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+    coords = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+    try {
+      const geo = await Location.reverseGeocodeAsync(coords);
       if (geo.length) city = geo[0].city || geo[0].district || geo[0].region || "当前位置";
     } catch {
       city = "当前位置";
@@ -255,75 +310,86 @@ export async function loadWeather(): Promise<WeatherNow> {
     if (city) await setWeatherCity(city);
   }
 
-  // 1) 中央气象台（国内官方，稳定）
+  // 1) 夏柔天气（按城市）
+  const aa1 = await fetchAa1Weather(city);
+  if (aa1) {
+    await saveCache(aa1);
+    return aa1;
+  }
+
+  // 2) 中央气象台
   const cma = await fetchCmaWeather(city);
   if (cma) {
     await saveCache(cma);
     return cma;
   }
 
-  // 2) Open-Meteo（全球稳定、无需 Key、按坐标）
-  const openMeteo = await fetchOpenMeteo(latitude, longitude, city);
-  if (openMeteo) {
-    await saveCache(openMeteo);
-    return openMeteo;
+  // 3) Open-Meteo（需要坐标）
+  if (coords) {
+    const openMeteo = await fetchOpenMeteo(coords.latitude, coords.longitude, city);
+    if (openMeteo) {
+      await saveCache(openMeteo);
+      return openMeteo;
+    }
   }
 
-  // 3) vvhan 国内接口
+  // 4) vvhan
   const domestic = await fetchDomesticWeather(city);
   if (domestic) {
     await saveCache(domestic);
     return domestic;
   }
 
-  // 4) wttr.in
-  try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 15000);
-    const url = "https://wttr.in/" + latitude.toFixed(3) + "," + longitude.toFixed(3) + "?format=j1";
-    const res = await fetch(url, { signal: controller.signal });
-    clearTimeout(timer);
-    if (res.ok) {
-      const data: any = await res.json();
-      const cur = data.current_condition?.[0] ?? {};
-      const currentCode = Number(cur.weatherCode ?? 113);
-      const currentTemp = Math.round(Number(cur.temp_C ?? 0));
-      const days: WeatherDay[] = (data.weather ?? []).slice(0, 3).map((d: any) => {
-        const hourly = Array.isArray(d.hourly) ? d.hourly : [];
-        const rain = hourly.reduce((mx: number, h: any) => Math.max(mx, Number(h.chanceofrain ?? 0)), 0);
-        const code = Number(hourly[0]?.weatherCode ?? currentCode);
-        return {
-          date: String(d.date ?? ""),
-          code,
-          label: weatherLabel(code),
-          min: Math.round(Number(d.mintempC ?? 0)),
-          max: Math.round(Number(d.maxtempC ?? 0)),
-          rain,
+  // 5) wttr.in
+  if (coords) {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 15000);
+      const url = "https://wttr.in/" + coords.latitude.toFixed(3) + "," + coords.longitude.toFixed(3) + "?format=j1";
+      const res = await fetch(url, { signal: controller.signal });
+      clearTimeout(timer);
+      if (res.ok) {
+        const data: any = await res.json();
+        const cur = data.current_condition?.[0] ?? {};
+        const currentCode = Number(cur.weatherCode ?? 113);
+        const currentTemp = Math.round(Number(cur.temp_C ?? 0));
+        const days: WeatherDay[] = (data.weather ?? []).slice(0, 3).map((d: any) => {
+          const hourly = Array.isArray(d.hourly) ? d.hourly : [];
+          const rain = hourly.reduce((mx: number, h: any) => Math.max(mx, Number(h.chanceofrain ?? 0)), 0);
+          const code = Number(hourly[0]?.weatherCode ?? currentCode);
+          return {
+            date: String(d.date ?? ""),
+            code,
+            label: weatherLabel(code),
+            min: Math.round(Number(d.mintempC ?? 0)),
+            max: Math.round(Number(d.maxtempC ?? 0)),
+            rain,
+          };
+        });
+        const rainToday = days[0]?.rain ?? 0;
+        const result: WeatherNow = {
+          city: city || "当前位置",
+          temp: currentTemp,
+          feels: Math.round(Number(cur.FeelsLikeC ?? currentTemp)),
+          humidity: Math.round(Number(cur.humidity ?? 0)),
+          wind: Math.round(Number(cur.windspeedKmph ?? 0)),
+          code: currentCode,
+          label: weatherLabel(currentCode),
+          rainAlert: rainToday >= 60 ? "今天降雨概率 " + rainToday + "%，出门记得带伞" : null,
+          days,
+          updatedAt: Date.now(),
         };
-      });
-      const rainToday = days[0]?.rain ?? 0;
-      const result: WeatherNow = {
-        city: city || "当前位置",
-        temp: currentTemp,
-        feels: Math.round(Number(cur.FeelsLikeC ?? currentTemp)),
-        humidity: Math.round(Number(cur.humidity ?? 0)),
-        wind: Math.round(Number(cur.windspeedKmph ?? 0)),
-        code: currentCode,
-        label: weatherLabel(currentCode),
-        rainAlert: rainToday >= 60 ? "今天降雨概率 " + rainToday + "%，出门记得带伞" : null,
-        days,
-        updatedAt: Date.now(),
-      };
-      await saveCache(result);
-      return result;
+        await saveCache(result);
+        return result;
+      }
+    } catch {
+      // fall through
     }
-  } catch {
-    // fall through to cache
   }
 
   const cached = await readCache();
   if (cached) return { ...cached, stale: true };
-  throw new Error("天气获取失败，请检查网络后重试");
+  throw new Error("天气获取失败，请检查网络或切换城市");
 }
 
 export async function scheduleWeatherReminder(w: WeatherNow): Promise<boolean> {

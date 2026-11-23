@@ -39,12 +39,13 @@ export function GlassTabBar({ state, navigation, navigateToTab }: { state: TabBa
     <View pointerEvents="box-none" style={[styles.wrap, { bottom: Math.max(insets.bottom, 10) }]}>
       <View style={[styles.bar, dark ? styles.barDark : styles.barLight]}>
         <BlurView
-          intensity={Platform.OS === "android" ? 90 : 60}
+          intensity={Platform.OS === "android" ? 110 : 70}
           tint={dark ? "dark" : "light"}
           experimentalBlurMethod="dimezisBlurView"
           style={StyleSheet.absoluteFill}
         />
-        <View style={[StyleSheet.absoluteFill, { backgroundColor: dark ? "rgba(18,22,30,0.58)" : "rgba(255,255,255,0.52)" }]} />
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: dark ? "rgba(16,20,28,0.38)" : "rgba(255,255,255,0.28)" }]} />
+        <View style={[styles.highlight, { backgroundColor: dark ? "rgba(255,255,255,0.10)" : "rgba(255,255,255,0.85)" }]} />
         <View style={[StyleSheet.absoluteFill, styles.edge, { borderColor: dark ? "rgba(255,255,255,0.10)" : "rgba(255,255,255,0.72)" }]} />
 
         <View style={styles.row} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
@@ -97,14 +98,15 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     borderWidth: 1,
     shadowColor: "#0B1220",
-    shadowOpacity: 0.16,
+    shadowOpacity: 0.22,
     shadowRadius: 22,
     shadowOffset: { width: 0, height: 10 },
     elevation: 24,
   },
-  barLight: { borderColor: "rgba(255,255,255,0.7)" },
+  barLight: { borderColor: "rgba(255,255,255,0.9)" },
   barDark: { borderColor: "rgba(255,255,255,0.10)" },
   edge: { borderRadius: 30, borderWidth: 1 },
+  highlight: { position: "absolute", left: 18, right: 18, top: 1, height: 1, borderRadius: 1 },
   row: { flex: 1, flexDirection: "row", alignItems: "center" },
   pill: { position: "absolute", top: 8, height: 48, borderRadius: 22 },
   item: { flex: 1, height: 64, alignItems: "center", justifyContent: "center", gap: 3 },
