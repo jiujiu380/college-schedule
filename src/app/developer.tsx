@@ -170,7 +170,7 @@ export default function DeveloperScreen() {
   };
 
   const resetTour = async () => {
-    await AsyncStorage.multiRemove(["college.intro.v1", "college.onboard.v1", "college.onboard.v2", "college.guide.v1"]);
+    await AsyncStorage.multiRemove(["college.intro.v1", "college.onboard.v1", "college.onboard.v2", "college.guide.v1", "college.guide.v2"]);
     report("已重置启动介绍与新手引导，下次进主站会重新出现", "ok");
   };
 
@@ -290,7 +290,6 @@ export default function DeveloperScreen() {
           </Text>
         ))}
       </View>
-      <Text style={styles.footer}>开发者选项仅用于排查问题，操作会影响通知、云端数据与引导状态。</Text>
     </ScrollView>
   );
 }

@@ -4,7 +4,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import { Modal, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { useTheme } from "./theme-context";
 
-const KEY = "college.guide.v1";
+const KEY = "college.guide.v2";
 
 type Step = {
   route: string;
@@ -46,6 +46,7 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
   const step = STEPS[Math.min(index, STEPS.length - 1)];
 
   const start = useCallback(() => {
+    AsyncStorage.setItem(KEY, "1").catch(() => {});
     setIndex(0);
     setVisible(true);
   }, []);

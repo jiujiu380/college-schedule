@@ -166,7 +166,6 @@ export default function WeatherScreen() {
         </View>
       </View>
 
-      <Text style={styles.footer}>天气数据优先来自夏柔天气接口，失败自动切换中央气象台 / Open-Meteo；定位仅用于获取本地天气。</Text>
     </ScrollView>
   );
 }

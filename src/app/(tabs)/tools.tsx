@@ -77,7 +77,6 @@ export default function ToolsScreen() {
         </View>
       ))}
 
-      <Text style={styles.footer}>知酷课程表 · 数据保存在本机 · {tables.length} 张课表</Text>
     </ScrollView>
   );
 }

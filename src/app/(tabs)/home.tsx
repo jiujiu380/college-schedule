@@ -12,6 +12,8 @@ import { useGlobalRefresh, useRefreshTask } from "../../lib/app-refresh";
 import { useSchedule } from "../../lib/schedule-store";
 import { useTheme } from "../../lib/theme-context";
 import { currentPeriodNo, formatToday, todayWeekday } from "../../lib/time";
+import { weekOfDate } from "../../lib/timetables";
+import { Course } from "../../lib/schedule";
 import { Announcement, fetchAnnouncements, htmlToText } from "../../lib/site-api";
 import { loadQuote } from "../../lib/quote";
 import { Colors } from "../../theme";
@@ -61,13 +63,37 @@ export default function HomeScreen() {
   const today = todayWeekday();
   const now = currentNow();
   const current = currentPeriodNo(periods, now);
+  const currentWeek = useMemo(() => weekOfDate(activeTable.startDate), [activeTable.startDate]);
+  const moves = useMemo(() => activeTable.moves ?? [], [activeTable.moves]);
 
-  const todayList = useMemo(
-    () => courses.filter((c) => c.weekday === today && c.weeks.includes(week)).sort((a, b) => a.startPeriod - b.startPeriod),
-    [courses, today, week],
-  );
-  const weekCount = useMemo(() => courses.filter((c) => c.weeks.includes(week)).length, [courses, week]);
-  const nextCourse = todayList.find((c) => c.endPeriod >= (current ?? 0));
+  const todayList = useMemo(() => {
+    const movedOut = new Set(moves.filter((m) => m.fromWeek === currentWeek).map((m) => m.courseId));
+    const base = courses.filter((c) => c.weeks.includes(currentWeek) && !movedOut.has(c.id));
+    const movedIn = moves
+      .filter((m) => m.toWeek === currentWeek && m.toWeekday === today)
+      .map((m) => {
+        const origin = courses.find((c) => c.id === m.courseId);
+        if (!origin) return null;
+        return { ...origin, id: origin.id + "@move@" + m.id, weekday: m.toWeekday, startPeriod: m.toStart, endPeriod: m.toEnd, weeks: [currentWeek] };
+      })
+      .filter((c): c is Course => Boolean(c));
+    return [...base, ...movedIn].filter((c) => c.weekday === today).sort((a, b) => a.startPeriod - b.startPeriod);
+  }, [courses, today, currentWeek, moves]);
+
+  const weekCount = useMemo(() => courses.filter((c) => c.weeks.includes(currentWeek)).length, [courses, currentWeek]);
+
+  const toMin = (t?: string) => {
+    if (!t) return Number.POSITIVE_INFINITY;
+    const [h, m] = t.split(":").map(Number);
+    return h * 60 + m;
+  };
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  const activeCourse = todayList.find((c) => {
+    const start = toMin(periods[c.startPeriod - 1]?.start);
+    const end = toMin(periods[c.endPeriod - 1]?.end);
+    return nowMin >= start && nowMin < end;
+  });
+  const nextCourse = todayList.find((c) => toMin(periods[c.startPeriod - 1]?.start) > nowMin);
 
   return (
     <ScrollView
@@ -83,7 +109,7 @@ export default function HomeScreen() {
           <Text style={styles.date}>{formatToday()}</Text>
           <Text style={styles.title}>今天</Text>
           <View style={styles.metaRow}>
-            <Text style={styles.meta}>{activeTable.name} · 第 {week} 周</Text>
+            <Text style={styles.meta}>{activeTable.name} · 第 {currentWeek} 周</Text>
             <Text style={styles.metaDot}>·</Text>
             <Text style={styles.meta}>{todayList.length} 节课</Text>
           </View>
@@ -100,17 +126,39 @@ export default function HomeScreen() {
         </FadeIn>
       ) : null}
 
-      {nextCourse ? (
+      {activeCourse ? (
+        <FadeIn delay={50}>
+          <Pressable style={styles.nextCard} onPress={() => router.push(`/course/${activeCourse.id}`)}>
+            <View style={styles.nextHead}>
+              <View style={styles.liveDot} />
+              <Text style={styles.nextLabel}>正在上课</Text>
+              <Text style={styles.nextTime}>{periods[activeCourse.startPeriod - 1]?.start} - {periods[activeCourse.endPeriod - 1]?.end}</Text>
+            </View>
+            <Text style={styles.nextName}>{activeCourse.name}</Text>
+            <Text style={styles.nextMeta}>{activeCourse.location ?? "地点待定"} · {activeCourse.teacher ?? "教师待定"}</Text>
+          </Pressable>
+        </FadeIn>
+      ) : nextCourse ? (
         <FadeIn delay={50}>
           <Pressable style={styles.nextCard} onPress={() => router.push(`/course/${nextCourse.id}`)}>
             <View style={styles.nextHead}>
               <View style={styles.liveDot} />
-              <Text style={styles.nextLabel}>{current && nextCourse.startPeriod <= current ? "正在上课" : "下一节"}</Text>
+              <Text style={styles.nextLabel}>下一节</Text>
               <Text style={styles.nextTime}>{periods[nextCourse.startPeriod - 1]?.start} - {periods[nextCourse.endPeriod - 1]?.end}</Text>
             </View>
             <Text style={styles.nextName}>{nextCourse.name}</Text>
             <Text style={styles.nextMeta}>{nextCourse.location ?? "地点待定"} · {nextCourse.teacher ?? "教师待定"}</Text>
           </Pressable>
+        </FadeIn>
+      ) : todayList.length ? (
+        <FadeIn delay={50}>
+          <View style={styles.restCard}>
+            <Ionicons name="cafe-outline" size={20} color={colors.faint} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.restTitle}>休息一下</Text>
+              <Text style={styles.restText}>今天的课已经上完了</Text>
+            </View>
+          </View>
         </FadeIn>
       ) : null}
 
@@ -175,7 +223,6 @@ export default function HomeScreen() {
         </View>
       </FadeIn>
 
-      <Text style={styles.footer}>完全离线 · 数据只保存在本机</Text>
 
     </ScrollView>
   );
@@ -189,6 +236,9 @@ const makeStyles = (colors: Colors) =>
     metaRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8 },
     meta: { fontSize: 12, color: colors.sub },
     metaDot: { fontSize: 12, color: colors.faint },
+    restCard: { flexDirection: "row", alignItems: "center", gap: 12, marginHorizontal: 18, marginTop: 14, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: 16, padding: 16 },
+    restTitle: { fontSize: 13.5, fontWeight: "600", color: colors.ink },
+    restText: { fontSize: 11, color: colors.faint, marginTop: 3 },
     quoteCard: { marginHorizontal: 18, marginTop: 14, borderRadius: 16, borderWidth: 1, padding: 14, paddingLeft: 18 },
     quoteMark: { position: "absolute", left: 4, top: 2, fontSize: 26, fontWeight: "700", opacity: 0.3 },
     quoteText: { fontSize: 13.5, lineHeight: 22, fontWeight: "500" },

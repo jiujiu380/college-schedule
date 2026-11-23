@@ -261,7 +261,6 @@ export default function SettingsScreen() {
         </Pressable>
       </View>
 
-      <Text style={styles.footer}>知酷课程表 · 完全离线 · 数据仅保存在本机</Text>
     </ScrollView>
   );
 }

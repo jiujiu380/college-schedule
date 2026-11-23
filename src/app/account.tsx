@@ -329,7 +329,6 @@ export default function AccountScreen() {
               </Pressable>
             ) : null}
           </View>
-          <Text style={styles.footer}>登录使用用户名、密码和极验验证；账号数据仅用于官网服务。</Text>
         </>
       )}
 

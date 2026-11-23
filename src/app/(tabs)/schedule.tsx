@@ -172,12 +172,14 @@ export default function ScheduleScreen() {
               <Ionicons name="add" size={15} color={colors.brand} />
               <Text style={styles.importText}>导入</Text>
             </Pressable>
-            <Pressable style={styles.todayBtn} onPress={() => setWeek(currentWeek)}>
-              <Text style={styles.todayText}>今日</Text>
-            </Pressable>
           </View>
         </View>
-        <Text style={styles.subtitle}>{formatToday()} · 共 {activeTable.totalWeeks} 周</Text>
+        <View style={styles.subtitleRow}>
+          <Text style={styles.subtitle}>{formatToday()} · 共 {activeTable.totalWeeks} 周</Text>
+          <Pressable style={styles.todayBtn} onPress={() => setWeek(currentWeek)}>
+            <Text style={styles.todayText}>回到今日</Text>
+          </Pressable>
+        </View>
 
         <View style={styles.weekBar}>
           <Pressable style={styles.navBtn} onPress={() => setWeek(week - 1)} hitSlop={6}><Ionicons name="chevron-back" size={16} color={colors.ink} /></Pressable>
@@ -328,7 +330,6 @@ export default function ScheduleScreen() {
               </View>
             </View>
           </Animated.View>
-          <Text style={styles.footerHint}>长按空白格添加 · 长按课程编辑 · 非本周课程已淡化</Text>
         </ScrollView>
       )}
 
@@ -408,14 +409,15 @@ const makeStyles = (colors: Colors) =>
   StyleSheet.create({
     header: { paddingHorizontal: 16, paddingBottom: 12 },
     titleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
-    headerActions: { alignItems: "flex-end", gap: 6, flexShrink: 0 },
+    headerActions: { flexShrink: 0 },
+    subtitleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, marginTop: 5 },
     todayBtn: { paddingHorizontal: 9, paddingVertical: 3, borderRadius: 7, backgroundColor: colors.chipBg },
     todayText: { fontSize: 10.5, color: colors.sub, fontWeight: "500" },
     tableTitle: { flexDirection: "row", alignItems: "center", gap: 2, flex: 1, minWidth: 0 },
     title: { fontSize: 22, fontWeight: "800", color: colors.ink, letterSpacing: -0.5, flexShrink: 1 },
     importBtn: { flexDirection: "row", alignItems: "center", gap: 2, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, backgroundColor: colors.brandSoft },
     importText: { fontSize: 12.5, color: colors.brand, fontWeight: "600" },
-    subtitle: { fontSize: 12, color: colors.faint, marginTop: 5 },
+    subtitle: { fontSize: 12, color: colors.faint, flexShrink: 1 },
     weekBar: { flexDirection: "row", alignItems: "center", marginTop: 14, backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.line, padding: 6 },
     navBtn: { width: 34, height: 32, alignItems: "center", justifyContent: "center", borderRadius: 8 },
     weekCenter: { flex: 1, alignItems: "center" },
