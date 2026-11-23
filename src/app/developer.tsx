@@ -170,7 +170,7 @@ export default function DeveloperScreen() {
   };
 
   const resetTour = async () => {
-    await AsyncStorage.multiRemove(["college.intro.v1", "college.onboard.v1", "college.onboard.v2"]);
+    await AsyncStorage.multiRemove(["college.intro.v1", "college.onboard.v1", "college.onboard.v2", "college.guide.v1"]);
     report("已重置启动介绍与新手引导，下次进主站会重新出现", "ok");
   };
 

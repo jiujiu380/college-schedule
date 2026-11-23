@@ -5,7 +5,8 @@ import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "r
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { FadeIn } from "../../components/Anim";
 import { ScreenStatusBar } from "../../components/ScreenStatusBar";
-import { TourOverlay, hasSeenTour } from "../../components/TourOverlay";
+import { hasSeenGuide } from "../../lib/tour";
+import { useTour } from "../../lib/tour";
 import { currentNow } from "../../lib/clock";
 import { useGlobalRefresh, useRefreshTask } from "../../lib/app-refresh";
 import { useSchedule } from "../../lib/schedule-store";
@@ -24,7 +25,7 @@ export default function HomeScreen() {
   const { tour } = useLocalSearchParams<{ tour?: string }>();
   const [announcement, setAnnouncement] = useState<Announcement | null>(null);
   const [quote, setQuote] = useState("");
-  const [tourVisible, setTourVisible] = useState(false);
+  const { start: startTour } = useTour();
   const { refreshing, refresh } = useGlobalRefresh();
 
   const loadAnnouncement = useCallback(async () => {
@@ -47,15 +48,15 @@ export default function HomeScreen() {
 
   React.useEffect(() => {
     let alive = true;
-    hasSeenTour().then((seen) => {
-      if (alive && !seen) setTimeout(() => setTourVisible(true), 700);
+    hasSeenGuide().then((seen) => {
+      if (alive && !seen) setTimeout(() => startTour(), 800);
     });
     return () => { alive = false; };
-  }, []);
+  }, [startTour]);
 
   React.useEffect(() => {
-    if (tour === "1") setTourVisible(true);
-  }, [tour]);
+    if (tour === "1") startTour();
+  }, [tour, startTour]);
 
   const today = todayWeekday();
   const now = currentNow();
@@ -118,7 +119,7 @@ export default function HomeScreen() {
           <View style={[styles.quoteCard, { backgroundColor: colors.surface, borderColor: colors.line }]}>
             <Text style={[styles.quoteMark, { color: colors.brand }]}>“</Text>
             <Text style={[styles.quoteText, { color: colors.ink }]}>{quote}</Text>
-            <Text style={[styles.quoteFrom, { color: colors.faint }]}>每日一言 · 夏柔 API</Text>
+            <Text style={[styles.quoteFrom, { color: colors.faint }]}>每日一言</Text>
           </View>
         </FadeIn>
       ) : null}
@@ -176,7 +177,6 @@ export default function HomeScreen() {
 
       <Text style={styles.footer}>完全离线 · 数据只保存在本机</Text>
 
-      <TourOverlay visible={tourVisible} onDone={() => setTourVisible(false)} />
     </ScrollView>
   );
 }

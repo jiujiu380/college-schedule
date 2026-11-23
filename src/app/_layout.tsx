@@ -9,6 +9,7 @@ import { getAccountToken } from "../lib/account";
 import { AuthProvider } from "../lib/auth";
 import { ensureChannel } from "../lib/notifications";
 import { AppRefreshProvider } from "../lib/app-refresh";
+import { TourProvider } from "../lib/tour";
 import { ScheduleProvider } from "../lib/schedule-store";
 import { ThemeProvider, useTheme } from "../lib/theme-context";
 import { UpdateProvider } from "../lib/update-store";
@@ -49,11 +50,15 @@ function NotificationBridge() {
 
     const open = (response: Notifications.NotificationResponse | null) => {
       const id = response?.notification.request.identifier;
-      const courseId = (response?.notification.request.content.data as any)?.courseId;
-      if (!courseId) return;
+      const data = response?.notification.request.content.data as any;
+      if (!data) return;
       if (id && handled.current.has(id)) return;
       if (id) handled.current.add(id);
-      setTimeout(() => router.push(`/course/${courseId}`), 300);
+      if (data.kind === "update") {
+        setTimeout(() => router.push("/update"), 300);
+        return;
+      }
+      if (data.courseId) setTimeout(() => router.push(`/course/${data.courseId}`), 300);
     };
 
     const sub = Notifications.addNotificationResponseReceivedListener(open);
@@ -89,7 +94,7 @@ function ThemedRoot() {
 
   return (
     <AuthProvider>
-      <AppRefreshProvider><ScheduleProvider>
+      <AppRefreshProvider><TourProvider><ScheduleProvider>
         <UpdateProvider>
           <StatusBar style={scheme === "dark" ? "light" : "dark"} />
           <View style={{ flex: 1, backgroundColor: scheme === "dark" ? "#000000" : "#E4E6EA", alignItems: "center" }}>
@@ -142,7 +147,7 @@ function ThemedRoot() {
             </View>
           </View>
         </UpdateProvider>
-      </ScheduleProvider></AppRefreshProvider>
+      </ScheduleProvider></TourProvider></AppRefreshProvider>
     </AuthProvider>
   );
 }

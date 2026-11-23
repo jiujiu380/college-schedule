@@ -1,4 +1,8 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Notifications from "expo-notifications";
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { Platform } from "react-native";
+import { ensureChannel } from "./notifications";
 import {
   CheckResult,
   DEFAULT_UPDATE_CONFIG,
@@ -20,6 +24,30 @@ type UpdateValue = {
 const Ctx = createContext<UpdateValue | null>(null);
 
 const SIX_HOURS = 6 * 60 * 60 * 1000;
+const NOTIFIED_KEY = "college.update.notified.v1";
+
+async function notifyUpdate(result: CheckResult): Promise<void> {
+  if (result.status !== "available" || !result.latest) return;
+  try {
+    const seen = await AsyncStorage.getItem(NOTIFIED_KEY);
+    if (seen === result.latest) return;
+    const perm = await Notifications.getPermissionsAsync();
+    if (!perm.granted) return;
+    await ensureChannel();
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: "发现新版本 v" + result.latest,
+        body: "点此查看更新内容并下载安装包",
+        data: { kind: "update", version: result.latest },
+        sound: "default",
+      },
+      trigger: Platform.OS === "android" ? null : null,
+    });
+    await AsyncStorage.setItem(NOTIFIED_KEY, result.latest);
+  } catch {
+    // 通知失败不影响检查更新
+  }
+}
 
 export function UpdateProvider({ children }: { children: React.ReactNode }) {
   const [cfg, setCfg] = useState<UpdateConfig>(DEFAULT_UPDATE_CONFIG);
@@ -53,7 +81,10 @@ export function UpdateProvider({ children }: { children: React.ReactNode }) {
       const stale = !cached || Date.now() - cached.checkedAt > SIX_HOURS;
       if (stale) {
         setTimeout(() => {
-          if (alive) void run(config);
+          if (!alive) return;
+          void run(config).then((r) => {
+            if (alive && r) void notifyUpdate(r);
+          }).catch(() => {});
         }, 900);
       }
     })();

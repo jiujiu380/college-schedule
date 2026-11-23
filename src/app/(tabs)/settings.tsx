@@ -1,18 +1,19 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Alert, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
+import { Alert, Image, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScreenStatusBar } from "../../components/ScreenStatusBar";
 import { cancelAllReminders, ensureNotifyPermission, getLeadMinutes, isNotifyEnabled, scheduleClassReminders, setLeadMinutes, setNotifyEnabled } from "../../lib/notifications";
 import { useSchedule } from "../../lib/schedule-store";
 import { setAccent } from "../../lib/accent";
 import { AccountUser, getCachedAccount, refreshAccount } from "../../lib/account";
+import { getSiteBase } from "../../lib/site-api";
 import * as Notifications from "expo-notifications";
 import { ensureChannel } from "../../lib/notifications";
 import { useTheme } from "../../lib/theme-context";
 import { useUpdate } from "../../lib/update-store";
-import { markTourSeen } from "../../components/TourOverlay";
+import { hasSeenGuide, resetGuide } from "../../lib/tour";
 import { THEME_PRESETS } from "../../lib/theme-presets";
 import { Colors, ThemeMode, radius } from "../../theme";
 
@@ -27,11 +28,22 @@ export default function SettingsScreen() {
   } = useSchedule();
   const { result: updateResult, checking: updateChecking } = useUpdate();
   const [account, setAccount] = useState<AccountUser | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
   useFocusEffect(useCallback(() => {
     getCachedAccount().then(setAccount);
     refreshAccount().then((u) => { if (u) setAccount(u); }).catch(() => {});
   }, []));
+
+  useEffect(() => {
+    if (!account?.avatar) {
+      setAvatarUrl(null);
+      return;
+    }
+    getSiteBase()
+      .then((base) => setAvatarUrl(base + "/" + account.avatar + "?v=" + Date.now()))
+      .catch(() => setAvatarUrl(null));
+  }, [account?.avatar]);
   const [notify, setNotify] = useState(false);
   const [lead, setLead] = useState(10);
   const [busy, setBusy] = useState(false);
@@ -108,9 +120,13 @@ export default function SettingsScreen() {
 
       <View style={[styles.card, { marginTop: 14 }]}>
         <Pressable style={styles.profile} onPress={() => router.push("/account")}>
-          <View style={styles.avatar}>
-            {account ? <Text style={styles.avatarText}>{(account.nickname || account.username).slice(0, 1).toUpperCase()}</Text> : <Ionicons name="person" size={20} color="#FFFFFF" />}
-          </View>
+          {avatarUrl ? (
+            <Image source={{ uri: avatarUrl }} style={styles.avatar} />
+          ) : (
+            <View style={styles.avatar}>
+              {account ? <Text style={styles.avatarText}>{(account.nickname || account.username).slice(0, 1).toUpperCase()}</Text> : <Ionicons name="person" size={20} color="#FFFFFF" />}
+            </View>
+          )}
           <View style={{ flex: 1 }}>
             <Text style={styles.name}>{account ? account.nickname || account.username : "登录 / 注册账号"}</Text>
             <Text style={styles.role}>

@@ -60,7 +60,7 @@ export default function AccountScreen() {
     setAvatarLocal(undefined);
     setAvatarBase64(undefined);
     if (user.avatar) {
-      getSiteBase().then((base) => setAvatarUri(base + "/" + user.avatar)).catch(() => setAvatarUri(undefined));
+      getSiteBase().then((base) => setAvatarUri(base + "/" + user.avatar + "?v=" + Date.now())).catch(() => setAvatarUri(undefined));
     } else {
       setAvatarUri(undefined);
     }

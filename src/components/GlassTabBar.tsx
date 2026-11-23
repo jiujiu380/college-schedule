@@ -44,7 +44,7 @@ export function GlassTabBar({ state, navigation, navigateToTab }: { state: TabBa
           experimentalBlurMethod="dimezisBlurView"
           style={StyleSheet.absoluteFill}
         />
-        <View style={[StyleSheet.absoluteFill, { backgroundColor: dark ? "rgba(16,20,28,0.38)" : "rgba(255,255,255,0.28)" }]} />
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: dark ? "rgba(16,20,28,0.28)" : "rgba(255,255,255,0.16)" }]} />
         <View style={[styles.highlight, { backgroundColor: dark ? "rgba(255,255,255,0.10)" : "rgba(255,255,255,0.85)" }]} />
         <View style={[StyleSheet.absoluteFill, styles.edge, { borderColor: dark ? "rgba(255,255,255,0.10)" : "rgba(255,255,255,0.72)" }]} />
 
@@ -54,7 +54,11 @@ export function GlassTabBar({ state, navigation, navigateToTab }: { state: TabBa
               style={[
                 styles.pill,
                 { width: pillW, transform: [{ translateX }] },
-                { backgroundColor: dark ? "rgba(91,140,255,0.16)" : "rgba(37,99,235,0.09)" },
+                {
+                  backgroundColor: dark ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.55)",
+                  borderWidth: 1,
+                  borderColor: dark ? "rgba(255,255,255,0.10)" : "rgba(255,255,255,0.95)",
+                },
               ]}
             />
           ) : null}
@@ -108,7 +112,7 @@ const styles = StyleSheet.create({
   edge: { borderRadius: 30, borderWidth: 1 },
   highlight: { position: "absolute", left: 18, right: 18, top: 1, height: 1, borderRadius: 1 },
   row: { flex: 1, flexDirection: "row", alignItems: "center" },
-  pill: { position: "absolute", top: 8, height: 48, borderRadius: 22 },
+  pill: { position: "absolute", top: 8, height: 48, borderRadius: 24 },
   item: { flex: 1, height: 64, alignItems: "center", justifyContent: "center", gap: 3 },
   label: { fontSize: 10, letterSpacing: 0.1 },
 });
