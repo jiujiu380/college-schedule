@@ -22,7 +22,7 @@ $anns = db()->query('SELECT id, title, content, pinned, created_at FROM announce
 <meta name="description" content="<?= e($seoDesc) ?>">
 <meta property="og:title" content="<?= e($name) ?>">
 <meta property="og:description" content="<?= e($seoDesc) ?>">
-<meta property="og:image" content="assets/shots/home.png?v=20261123b">
+<meta property="og:image" content="assets/shots/home.png?v=20261124">
 <style>
 :root{--blue:#1a6dff;--blue-dark:#0b4fc7;--blue-soft:#eef4ff;--ink:#16233b;--muted:#5c6b85;--faint:#8a98b0;--line:#e6ecf6;--bg:#fff;--r:18px}
 *{box-sizing:border-box}
@@ -155,7 +155,7 @@ footer{border-top:1px solid var(--line);margin-top:70px;background:#fff}
     </div>
   </div>
   <div class="phone-wrap">
-    <div class="phone"><img src="assets/shots/home.png?v=20261123b" alt="知酷课程表主站"></div>
+    <div class="phone"><img src="assets/shots/home.png?v=20261124" alt="知酷课程表主站"></div>
     <div class="chip one"><span class="dot"></span> 今日 3 节课</div>
     <div class="chip two">第 12 周 · 周三</div>
   </div>
@@ -170,7 +170,7 @@ footer{border-top:1px solid var(--line);margin-top:70px;background:#fff}
     <div class="card"><div class="tile"><svg viewBox="0 0 24 24"><path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M4 19h16"/></svg></div><h3>多种导入方式</h3><p>网页教务系统识别、粘贴源码、Excel / CSV / JSON 文件，导入前可逐条修改。</p></div>
     <div class="card"><div class="tile"><svg viewBox="0 0 24 24"><path d="M18 9a6 6 0 1 0-12 0c0 6-2 7-2 7h16s-2-1-2-7"/><path d="M10 20a2 2 0 0 0 4 0"/></svg></div><h3>上课提醒</h3><p>本地通知，提前 5 / 10 / 15 / 30 分钟可选，支持后台保活与开机自启。</p></div>
     <div class="card"><div class="tile"><svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18c1.5 0 2-1 2-2 0-1.2-1-1.7-1-2.8 0-.9.8-1.7 1.8-1.7H17a4 4 0 0 0 4-4A9 9 0 0 0 12 3Z"/><circle cx="8" cy="11" r="1"/><circle cx="11" cy="7" r="1"/><circle cx="15" cy="8" r="1"/></svg></div><h3>8 套主题配色</h3><p>主题色全局生效，行高、圆角、透明度、深色模式都可以自己调。</p></div>
-    <div class="card"><div class="tile"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg></div><h3>工具与桌面小组件</h3><p>天气、日历、备忘录、每日新闻，以及今日课程 / 周课表小组件。</p></div>
+    <div class="card"><div class="tile"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg></div><h3>学习工具与桌面小组件</h3><p>作业 DDL、考试倒计时、课表分享、天气、日历、备忘录、每日新闻，以及今日课程小组件。</p></div>
     <div class="card"><div class="tile"><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></div><h3>账号与云同步</h3><p>手机与 Windows 共用官网账号，课表、备忘录、日程可云端备份与恢复。</p></div>
   </div>
 </div></section>
@@ -180,9 +180,9 @@ footer{border-top:1px solid var(--line);margin-top:70px;background:#fff}
   <h2 class="sec-title">真正的界面</h2>
   <p class="sec-sub">干净、扁平，信息密度刚好；深浅色都耐看。</p>
   <div class="shots">
-    <div class="shot"><img src="assets/shots/schedule.png?v=20261123b" alt="周课表"></div>
-    <div class="shot"><img src="assets/shots/calendar.png?v=20261123b" alt="日历"></div>
-    <div class="shot"><img src="assets/shots/tools.png?v=20261123b" alt="工具"></div>
+    <div class="shot"><img src="assets/shots/schedule.png?v=20261124" alt="周课表"></div>
+    <div class="shot"><img src="assets/shots/calendar.png?v=20261124" alt="日历"></div>
+    <div class="shot"><img src="assets/shots/tools.png?v=20261124" alt="工具"></div>
   </div>
 </div></section>
 

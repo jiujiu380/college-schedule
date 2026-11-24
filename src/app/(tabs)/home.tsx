@@ -16,6 +16,7 @@ import { weekOfDate } from "../../lib/timetables";
 import { Course } from "../../lib/schedule";
 import { Announcement, fetchAnnouncements, htmlToText } from "../../lib/site-api";
 import { loadQuote } from "../../lib/quote";
+import { Exam, countdown, examTime, loadExams } from "../../lib/exams";
 import { Colors } from "../../theme";
 
 export default function HomeScreen() {
@@ -27,6 +28,7 @@ export default function HomeScreen() {
   const { tour } = useLocalSearchParams<{ tour?: string }>();
   const [announcement, setAnnouncement] = useState<Announcement | null>(null);
   const [quote, setQuote] = useState("");
+  const [nearestExam, setNearestExam] = useState<Exam | null>(null);
   const { start: startTour } = useTour();
   const { refreshing, refresh } = useGlobalRefresh();
 
@@ -42,6 +44,12 @@ export default function HomeScreen() {
   useFocusEffect(useCallback(() => {
     void loadAnnouncement();
     loadQuote().then(setQuote).catch(() => {});
+    loadExams()
+      .then((list) => {
+        const next = list.filter((e) => examTime(e) > Date.now()).sort((a, b) => examTime(a) - examTime(b))[0];
+        setNearestExam(next ?? null);
+      })
+      .catch(() => {});
   }, [loadAnnouncement]));
   useRefreshTask(async () => {
     await loadAnnouncement();
@@ -162,6 +170,19 @@ export default function HomeScreen() {
         </FadeIn>
       ) : null}
 
+      {nearestExam ? (
+        <FadeIn delay={70}>
+          <Pressable style={styles.examCard} onPress={() => router.push("/exams")}>
+            <View style={styles.examIcon}><Ionicons name="timer-outline" size={18} color={colors.brand} /></View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.examLabel}>距离 {nearestExam.name}</Text>
+              <Text style={styles.examDate}>{nearestExam.date} {nearestExam.time ?? ""}{nearestExam.location ? " · " + nearestExam.location : ""}</Text>
+            </View>
+            <Text style={styles.examDays}>{countdown(examTime(nearestExam)).days} 天</Text>
+          </Pressable>
+        </FadeIn>
+      ) : null}
+
       {quote ? (
         <FadeIn delay={80}>
           <View style={[styles.quoteCard, { backgroundColor: colors.surface, borderColor: colors.line }]}>
@@ -236,6 +257,11 @@ const makeStyles = (colors: Colors) =>
     metaRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8 },
     meta: { fontSize: 12, color: colors.sub },
     metaDot: { fontSize: 12, color: colors.faint },
+    examCard: { flexDirection: "row", alignItems: "center", gap: 10, marginHorizontal: 18, marginTop: 14, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: 16, padding: 14 },
+    examIcon: { width: 36, height: 36, borderRadius: 11, backgroundColor: colors.brandSoft, alignItems: "center", justifyContent: "center" },
+    examLabel: { fontSize: 12.5, fontWeight: "600", color: colors.ink },
+    examDate: { fontSize: 10, color: colors.faint, marginTop: 3 },
+    examDays: { fontSize: 15, fontWeight: "800", color: colors.brand },
     restCard: { flexDirection: "row", alignItems: "center", gap: 12, marginHorizontal: 18, marginTop: 14, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: 16, padding: 16 },
     restTitle: { fontSize: 13.5, fontWeight: "600", color: colors.ink },
     restText: { fontSize: 11, color: colors.faint, marginTop: 3 },

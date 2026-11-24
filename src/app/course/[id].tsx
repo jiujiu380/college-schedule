@@ -50,7 +50,7 @@ export default function CourseDetail() {
 
   const submitHomework = async () => {
     if (!hwText.trim()) return;
-    const list = await addHomework(course.id, occurrence, hwText);
+    const list = await addHomework(course.id, occurrence, hwText, occurrence + "T23:59");
     setHomework(list.filter((h) => h.courseId === course.id && h.date === occurrence));
     setHwText("");
   };

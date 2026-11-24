@@ -165,7 +165,7 @@ export default function WeatherScreen() {
         <View style={styles.remindRow}>
           <View style={{ flex: 1 }}>
             <Text style={styles.remindTitle}>每日天气提醒</Text>
-            <Text style={styles.remindSub}>每天 07:00 推送本地天气与降雨提示</Text>
+            <Text style={styles.remindSub}>每天 07:00 推送天气 + 今日课程</Text>
           </View>
           <Switch value={remind} onValueChange={toggleRemind} trackColor={{ false: colors.line, true: colors.brand }} thumbColor="#FFFFFF" />
         </View>

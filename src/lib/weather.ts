@@ -3,6 +3,7 @@ import * as Location from "expo-location";
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 import { ensureChannel } from "./notifications";
+import { weekOfDate } from "./timetables";
 
 const CITY_KEY = "college.weather.city.v1";
 const REMIND_KEY = "college.weather.remind.v1";
@@ -61,9 +62,18 @@ export async function setWeatherReminderOn(on: boolean): Promise<void> {
 }
 
 export async function cancelWeatherReminder(): Promise<void> {
-  const id = await AsyncStorage.getItem(REMIND_ID_KEY);
-  if (id) {
-    try { await Notifications.cancelScheduledNotificationAsync(id); } catch { /* ignore */ }
+  const raw = await AsyncStorage.getItem(REMIND_ID_KEY);
+  if (raw) {
+    let ids: string[] = [];
+    try {
+      const parsed = JSON.parse(raw);
+      ids = Array.isArray(parsed) ? parsed : [String(parsed)];
+    } catch {
+      ids = [raw];
+    }
+    for (const id of ids) {
+      try { await Notifications.cancelScheduledNotificationAsync(id); } catch { /* ignore */ }
+    }
     await AsyncStorage.removeItem(REMIND_ID_KEY);
   }
 }
@@ -523,6 +533,29 @@ export async function loadWeather(): Promise<WeatherNow> {
   throw new Error("天气获取失败，请检查网络或切换城市");
 }
 
+async function todayCourses(date: Date): Promise<string> {
+  try {
+    const raw = await AsyncStorage.getItem("college.timetables.v1");
+    if (!raw) return "";
+    const parsed = JSON.parse(raw);
+    const tables = Array.isArray(parsed?.tables) ? parsed.tables : Array.isArray(parsed) ? parsed : [];
+    const activeId = (await AsyncStorage.getItem("college.timetables.active.v1")) || parsed?.activeId;
+    const table = tables.find((t: any) => t.id === activeId) ?? tables[0];
+    if (!table || !Array.isArray(table.courses)) return "";
+    const week = weekOfDate(String(table.startDate), date);
+    const weekday = date.getDay() === 0 ? 7 : date.getDay();
+    const list = table.courses
+      .filter((c: any) => c.weekday === weekday && Array.isArray(c.weeks) && c.weeks.includes(week))
+      .sort((a: any, b: any) => a.startPeriod - b.startPeriod);
+    if (!list.length) return "今天没有课";
+    const first = list[0];
+    const period = Array.isArray(table.periods) ? table.periods[first.startPeriod - 1] : null;
+    return "今天 " + list.length + " 节课" + (period?.start ? " · " + period.start + " " + first.name : " · " + first.name);
+  } catch {
+    return "";
+  }
+}
+
 export async function scheduleWeatherReminder(w: WeatherNow): Promise<boolean> {
   await cancelWeatherReminder();
   await ensureChannel();
@@ -531,20 +564,37 @@ export async function scheduleWeatherReminder(w: WeatherNow): Promise<boolean> {
     const req = await Notifications.requestPermissionsAsync();
     if (req.status !== "granted") return false;
   }
-  const today = w.days[0];
-  const body = today
-    ? `${w.city} ${w.label} ${today.min}~\u00A0${today.max}℃，降雨概率 ${today.rain}%${w.rainAlert ? "，记得带伞" : ""}`
-    : `${w.city} ${w.label} ${w.temp}℃`;
-  try {
-    const id = await Notifications.scheduleNotificationAsync({
-      content: { title: "今日天气", body, sound: "default" },
-      trigger: Platform.OS === "android"
-        ? { type: Notifications.SchedulableTriggerInputTypes.DAILY, hour: 7, minute: 0, channelId: "weather-alerts" }
-        : { type: Notifications.SchedulableTriggerInputTypes.DAILY, hour: 7, minute: 0 },
-    });
-    await AsyncStorage.setItem(REMIND_ID_KEY, id);
-    return true;
-  } catch {
-    return false;
+
+  const ids: string[] = [];
+  const now = new Date();
+  for (let i = 0; i < 7; i++) {
+    const date = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i, 7, 0, 0, 0);
+    if (date.getTime() <= now.getTime()) continue;
+    const forecast = w.days[i];
+    const weatherText = forecast
+      ? `${w.city} ${forecast.label} ${forecast.min}~${forecast.max}℃${forecast.rain >= 60 ? "，有雨雪记得带伞" : ""}`
+      : `${w.city} ${w.label} ${w.temp}℃`;
+    const courseText = await todayCourses(date);
+    try {
+      const id = await Notifications.scheduleNotificationAsync({
+        content: {
+          title: "早间提醒",
+          body: courseText ? courseText + " · " + weatherText : weatherText,
+          sound: "default",
+          data: { kind: "weather" },
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DATE,
+          date,
+          channelId: "weather-alerts",
+        } as any,
+      });
+      ids.push(id);
+    } catch {
+      // 单日失败不影响其他日期
+    }
   }
+  if (!ids.length) return false;
+  await AsyncStorage.setItem(REMIND_ID_KEY, JSON.stringify(ids));
+  return true;
 }

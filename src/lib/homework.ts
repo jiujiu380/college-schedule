@@ -8,6 +8,7 @@ export type Homework = {
   date: string;
   text: string;
   done: boolean;
+  due?: string;
   createdAt: number;
 };
 
@@ -25,9 +26,9 @@ export async function saveHomework(list: Homework[]): Promise<void> {
   await AsyncStorage.setItem(KEY, JSON.stringify(list));
 }
 
-export async function addHomework(courseId: string, date: string, text: string): Promise<Homework[]> {
+export async function addHomework(courseId: string, date: string, text: string, due?: string): Promise<Homework[]> {
   const list = await loadHomework();
-  const item: Homework = { id: "hw-" + Date.now().toString(36), courseId, date, text: text.trim(), done: false, createdAt: Date.now() };
+  const item: Homework = { id: "hw-" + Date.now().toString(36), courseId, date, text: text.trim(), done: false, due, createdAt: Date.now() };
   const next = [item, ...list];
   await saveHomework(next);
   return next;

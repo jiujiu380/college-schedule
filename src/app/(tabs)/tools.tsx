@@ -18,7 +18,10 @@ const GROUPS: { title: string; items: Item[] }[] = [
       { icon: "partly-sunny-outline", label: "天气提醒", desc: "本地天气与每日推送", route: "/weather", tint: "#F59E0B" },
       { icon: "calendar-outline", label: "日历", desc: "课程与日程一屏看完", route: "/calendar", tint: "#2F5BFF" },
       { icon: "journal-outline", label: "备忘录", desc: "富文本 + 手绘，离线", route: "/memo", tint: "#059669" },
-      { icon: "newspaper-outline", label: "每日新闻", desc: "热榜新闻图片", route: "/news", tint: "#F97316" },
+      { icon: "newspaper-outline", label: "每日新闻", desc: "今日要闻与详情", route: "/news", tint: "#F97316" },
+      { icon: "checkbox-outline", label: "作业 DDL", desc: "截止时间与逾期提醒", route: "/homework", tint: "#DC2626" },
+      { icon: "timer-outline", label: "考试倒计时", desc: "最近考试还剩多久", route: "/exams", tint: "#0F766E" },
+      { icon: "qr-code-outline", label: "课表分享", desc: "二维码 / 分享码导入", route: "/share", tint: "#7C3AED" },
     ],
   },
   {

@@ -14,6 +14,7 @@ import { ScheduleProvider } from "../lib/schedule-store";
 import { ThemeProvider, useTheme } from "../lib/theme-context";
 import { UpdateProvider } from "../lib/update-store";
 import { UpdatePrompt } from "../components/UpdatePrompt";
+import { BackupBootstrap } from "../components/BackupBootstrap";
 
 function AgreementGuard() {
   const pathname = usePathname();
@@ -109,6 +110,7 @@ function ThemedRoot() {
               }}
             >
               <AgreementGuard />
+              <BackupBootstrap />
               <NotificationBridge />
               <UpdatePrompt />
               <Stack
@@ -135,6 +137,9 @@ function ThemedRoot() {
                 <Stack.Screen name="news" options={{ ...headerOptions, title: "每日新闻" }} />
                 <Stack.Screen name="news/[id]" options={{ ...headerOptions, title: "新闻详情" }} />
                 <Stack.Screen name="charity" options={{ ...headerOptions, title: "公益专栏" }} />
+                <Stack.Screen name="homework" options={{ ...headerOptions, title: "作业 DDL" }} />
+                <Stack.Screen name="exams" options={{ ...headerOptions, title: "考试倒计时" }} />
+                <Stack.Screen name="share" options={{ ...headerOptions, title: "课表分享" }} />
                 <Stack.Screen name="contact" options={{ ...headerOptions, title: "联系作者" }} />
                 <Stack.Screen name="announcements" options={{ ...headerOptions, title: "公告" }} />
                 <Stack.Screen name="tickets" options={{ ...headerOptions, title: "工单反馈" }} />
