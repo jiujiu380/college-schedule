@@ -138,6 +138,8 @@ export default function ExportScreen() {
         <Pressable style={styles.navBtn} onPress={() => setWeek((w) => Math.min(active.totalWeeks, w + 1))}><Ionicons name="chevron-forward" size={16} color={colors.ink} /></Pressable>
       </View>
 
+      <Text style={styles.scrollHint}>左右滑动查看完整课表 · 导出的图片为横向高清版</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingRight: 4 }}>
       <View
         ref={shotRef}
         collapsable={false}
@@ -149,7 +151,7 @@ export default function ExportScreen() {
         <View style={styles.grid} onLayout={(e) => setGridWidth(e.nativeEvent.layout.width)}>
           <View style={styles.headRow}>
             <View style={[styles.timeCell, { width: timeW }]}><Text style={styles.headText}>节次</Text></View>
-            {WEEKDAYS.map((d) => <View key={d} style={styles.headDay}><Text style={styles.headText}>{d}</Text></View>)}
+            {WEEKDAYS.map((d) => <View key={d} style={styles.headDay}><Text style={styles.headText}>周{d}</Text></View>)}
           </View>
           <View style={{ height: rowH * 10, position: "relative" }}>
             {Array.from({ length: 10 }).map((_, i) => (
@@ -157,6 +159,7 @@ export default function ExportScreen() {
                 <View style={[styles.timeCell, { width: timeW }]}>
                   <Text style={styles.periodNo}>第{i + 1}节</Text>
                   <Text style={styles.periodTime}>{periods[i]?.start}</Text>
+                  <Text style={styles.periodTime}>{periods[i]?.end}</Text>
                 </View>
                 {WEEKDAYS.map((d) => <View key={d} style={styles.cell} />)}
               </View>
@@ -176,6 +179,7 @@ export default function ExportScreen() {
         </View>
         <Text style={styles.paperFoot}>知酷课程表 · 导出于 {new Date().toLocaleDateString()}</Text>
       </View>
+      </ScrollView>
 
       <View style={styles.actions}>
         <Pressable style={styles.action} onPress={exportImage} disabled={Boolean(busy)}>
@@ -206,21 +210,22 @@ const makeStyles = (colors: Colors) =>
     navBtn: { width: 34, height: 34, borderRadius: 9, backgroundColor: colors.chipBg, alignItems: "center", justifyContent: "center" },
     weekText: { fontSize: 15, fontWeight: "700", color: colors.ink },
     weekSub: { fontSize: 10.5, color: colors.faint, marginTop: 3 },
-    paper: { backgroundColor: "#FFFFFF", borderRadius: 12, padding: 14, borderWidth: 1, borderColor: "#E6ECF6" },
+    paper: { width: 760, backgroundColor: "#FFFFFF", borderRadius: 12, padding: 14, borderWidth: 1, borderColor: "#E6ECF6" },
+    scrollHint: { fontSize: 10.5, color: colors.faint, marginBottom: 8, marginLeft: 2 },
     paperTitle: { fontSize: 17, fontWeight: "800", color: "#16233B" },
     paperSub: { fontSize: 10, color: "#5C6B85", marginTop: 4, marginBottom: 10 },
     grid: { width: "100%" },
     headRow: { flexDirection: "row", backgroundColor: "#F3F7FF", borderTopLeftRadius: 6, borderTopRightRadius: 6, overflow: "hidden" },
-    headDay: { flex: 1, height: 26, alignItems: "center", justifyContent: "center", borderLeftWidth: 1, borderLeftColor: "#E8EEF8" },
-    headText: { fontSize: 9, color: "#1A6DFF", fontWeight: "700" },
+    headDay: { flex: 1, height: 30, alignItems: "center", justifyContent: "center", borderLeftWidth: 1, borderLeftColor: "#E8EEF8" },
+    headText: { fontSize: 11, color: "#1A6DFF", fontWeight: "700" },
     timeCell: { height: "100%", alignItems: "center", justifyContent: "center", backgroundColor: "#FAFCFF", borderRightWidth: 1, borderRightColor: "#E8EEF8" },
-    periodNo: { fontSize: 8, fontWeight: "600", color: "#16233B" },
-    periodTime: { fontSize: 6.5, color: "#8A98B0", marginTop: 2 },
+    periodNo: { fontSize: 10, fontWeight: "600", color: "#16233B" },
+    periodTime: { fontSize: 8, color: "#8A98B0", marginTop: 1 },
     gridRow: { position: "absolute", left: 0, right: 0, flexDirection: "row", borderBottomWidth: 1, borderBottomColor: "#EDF2FA" },
     cell: { flex: 1, borderLeftWidth: 1, borderLeftColor: "#EDF2FA" },
     block: { position: "absolute", borderRadius: 4, padding: 3, overflow: "hidden" },
-    blockName: { fontSize: 8, fontWeight: "700", lineHeight: 11 },
-    blockMeta: { fontSize: 6.5, marginTop: 2, lineHeight: 9, opacity: 0.85 },
+    blockName: { fontSize: 12, fontWeight: "700", lineHeight: 16 },
+    blockMeta: { fontSize: 9.5, marginTop: 3, lineHeight: 13, opacity: 0.85 },
     paperFoot: { fontSize: 8, color: "#8A98B0", marginTop: 10, textAlign: "right" },
     actions: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 14 },
     action: { width: "48%", flexGrow: 1, height: 52, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, alignItems: "center", justifyContent: "center", gap: 4 },
