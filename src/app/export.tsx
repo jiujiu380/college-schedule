@@ -4,45 +4,56 @@ import * as FileSystem from "expo-file-system/legacy";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 import React, { useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { captureRef } from "react-native-view-shot";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScreenStatusBar } from "../components/ScreenStatusBar";
-import { buildExportHtml, buildIcs, courseOccurrences, coursesForWeek, weekRange } from "../lib/export-schedule";
+import { BOARD_HEIGHT, BOARD_WIDTH, TimetableBoard } from "../components/TimetableBoard";
+import { buildIcs, courseOccurrences, coursesForWeek, weekRange } from "../lib/export-schedule";
 import { useSchedule } from "../lib/schedule-store";
 import { useTheme } from "../lib/theme-context";
-import { presetById, tintFor } from "../lib/theme-presets";
 import { Colors, radius } from "../theme";
 import { WEEKDAYS } from "../lib/time";
 import { weekOfDate } from "../lib/timetables";
 
+function formatTime(t?: string): string {
+  return t || "";
+}
+
 export default function ExportScreen() {
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   const { colors, scheme } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { tables, activeId, periods } = useSchedule();
+  const { tables, activeId, periods, restore } = useSchedule();
   const active = tables.find((t) => t.id === activeId) ?? tables[0];
   const [week, setWeek] = useState(() => (active ? weekOfDate(active.startDate) : 1));
   const [busy, setBusy] = useState("");
-  const shotRef = useRef<any>(null);
-  const [gridWidth, setGridWidth] = useState(0);
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const hiddenRef = useRef<any>(null);
 
+  const weekPeriods = active?.periods?.length ? active.periods : periods;
   const courses = useMemo(() => (active ? coursesForWeek(active, week) : []), [active, week]);
-  const rowH = 44;
-  const timeW = 34;
-  const dayW = gridWidth > 0 ? (gridWidth - timeW) / 7 : 0;
+  const scale = Math.max(0.25, Math.min(1, (width - 32) / BOARD_WIDTH));
+  const previewW = BOARD_WIDTH * scale;
+  const previewH = BOARD_HEIGHT * scale;
 
   const shareFile = async (uri: string, mimeType: string) => {
     if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(uri, { mimeType });
     else Alert.alert("文件已生成", uri);
   };
 
+  const captureBoard = async (result: "tmpfile" | "base64") => {
+    if (!active) throw new Error("没有课表");
+    if (!hiddenRef.current) throw new Error("导出画布还没准备好，请重试");
+    return await captureRef(hiddenRef, { format: "png", quality: 1, result });
+  };
+
   const exportImage = async () => {
-    if (!active) return;
     setBusy("image");
     try {
-      const uri = await captureRef(shotRef, { format: "png", quality: 1, result: "tmpfile" });
-      await shareFile(uri, "image/png");
+      const uri = await captureBoard("tmpfile");
+      await shareFile(uri as string, "image/png");
     } catch (e) {
       Alert.alert("导出失败", String(e instanceof Error ? e.message : e));
     } finally {
@@ -50,11 +61,29 @@ export default function ExportScreen() {
     }
   };
 
+  const buildPdfHtml = (base64: string) => {
+    if (!active) return "";
+    const list = active.courses
+      .map((c) => '<li><b>' + c.name + "</b> · 周" + WEEKDAYS[c.weekday - 1] + " · 第" + c.startPeriod + "-" + c.endPeriod + "节" + (c.teacher ? " · " + c.teacher : "") + (c.location ? " · " + c.location : "") + "</li>")
+      .join("");
+    return `<!doctype html><html><head><meta charset="utf-8"><style>
+      @page { size: A4 landscape; margin: 8mm; }
+      body { font-family: "PingFang SC","Microsoft YaHei",sans-serif; color:#16233B; margin:0; }
+      img { width:100%; display:block; }
+      h3 { font-size:12px; margin:12px 0 6px; }
+      ul { margin:0; padding-left:16px; columns:2; column-gap:24px; font-size:9px; color:#5C6B85; line-height:1.8; }
+      li { break-inside:avoid; }
+    </style></head><body>
+      <img src="data:image/png;base64,${base64}">
+      <h3>课程清单</h3><ul>${list}</ul>
+    </body></html>`;
+  };
+
   const exportPdf = async () => {
-    if (!active) return;
     setBusy("pdf");
     try {
-      const { uri } = await Print.printToFileAsync({ html: buildExportHtml(active, week, periods) });
+      const base64 = (await captureBoard("base64")) as string;
+      const { uri } = await Print.printToFileAsync({ html: buildPdfHtml(base64) });
       await shareFile(uri, "application/pdf");
     } catch (e) {
       Alert.alert("导出失败", String(e instanceof Error ? e.message : e));
@@ -79,12 +108,17 @@ export default function ExportScreen() {
     }
   };
 
-  const addToCalendar = async () => {
-    if (!active) return;
+  const openCalendar = () => {
     if (Platform.OS === "web") {
       Alert.alert("电脑端", "网页版无法直接写入系统日历，请使用「日历文件 .ics」导入日历。");
       return;
     }
+    setCalendarOpen(true);
+  };
+
+  const writeCalendar = async (scope: "week" | "all") => {
+    if (!active) return;
+    setCalendarOpen(false);
     setBusy("calendar");
     try {
       const perm = await Calendar.requestCalendarPermissionsAsync();
@@ -98,12 +132,21 @@ export default function ExportScreen() {
         Alert.alert("没有可用日历", "请先在系统日历中创建一个日历。");
         return;
       }
-      const monday = new Date(active.startDate + "T00:00:00");
-      monday.setDate(monday.getDate() + (week - 1) * 7);
-      const end = new Date(monday);
-      end.setDate(end.getDate() + 7);
-      const occurrences = courseOccurrences(active).filter((o) => o.start >= monday && o.start < end);
-      for (const o of occurrences) {
+      const all = courseOccurrences(active);
+      let occurrences = all;
+      if (scope === "week") {
+        const monday = new Date(active.startDate + "T00:00:00");
+        monday.setDate(monday.getDate() + (week - 1) * 7);
+        const end = new Date(monday);
+        end.setDate(end.getDate() + 7);
+        occurrences = all.filter((o) => o.start >= monday && o.start < end);
+      }
+      if (!occurrences.length) {
+        Alert.alert("没有课程", "当前范围里没有可写入的课程。");
+        return;
+      }
+      const limited = occurrences.slice(0, 300);
+      for (const o of limited) {
         await Calendar.createEventAsync(target.id, {
           title: o.title,
           startDate: o.start,
@@ -113,7 +156,7 @@ export default function ExportScreen() {
           timeZone: "Asia/Shanghai",
         });
       }
-      Alert.alert("已加入日历", `本周 ${occurrences.length} 节课已写入「${target.title}」。`);
+      Alert.alert("已加入日历", scope === "week" ? `本周 ${limited.length} 节课已写入「${target.title}」。` : `整学期 ${limited.length} 节课已写入「${target.title}」。`);
     } catch (e) {
       Alert.alert("写入失败", String(e instanceof Error ? e.message : e));
     } finally {
@@ -138,68 +181,76 @@ export default function ExportScreen() {
         <Pressable style={styles.navBtn} onPress={() => setWeek((w) => Math.min(active.totalWeeks, w + 1))}><Ionicons name="chevron-forward" size={16} color={colors.ink} /></Pressable>
       </View>
 
-      <Text style={styles.scrollHint}>左右滑动查看完整课表 · 导出的图片为横向高清版</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingRight: 4 }}>
-      <View
-        ref={shotRef}
-        collapsable={false}
-        style={styles.paper}
-        onLayout={(e) => setGridWidth(e.nativeEvent.layout.width - 28)}
-      >
-        <Text style={styles.paperTitle}>{active.name}</Text>
-        <Text style={styles.paperSub}>第 {week} 周 · {weekRange(active, week)} · {active.courses.length} 门课程</Text>
-        <View style={styles.grid} onLayout={(e) => setGridWidth(e.nativeEvent.layout.width)}>
-          <View style={styles.headRow}>
-            <View style={[styles.timeCell, { width: timeW }]}><Text style={styles.headText}>节次</Text></View>
-            {WEEKDAYS.map((d) => <View key={d} style={styles.headDay}><Text style={styles.headText}>周{d}</Text></View>)}
-          </View>
-          <View style={{ height: rowH * 10, position: "relative" }}>
-            {Array.from({ length: 10 }).map((_, i) => (
-              <View key={i} style={[styles.gridRow, { top: i * rowH, height: rowH }]}>
-                <View style={[styles.timeCell, { width: timeW }]}>
-                  <Text style={styles.periodNo}>第{i + 1}节</Text>
-                  <Text style={styles.periodTime}>{periods[i]?.start}</Text>
-                  <Text style={styles.periodTime}>{periods[i]?.end}</Text>
-                </View>
-                {WEEKDAYS.map((d) => <View key={d} style={styles.cell} />)}
-              </View>
-            ))}
-            {dayW > 0 && courses.map((c) => {
-              const tint = tintFor(presetById(active.themeId), c.id);
-              const top = (c.startPeriod - 1) * rowH + 2;
-              const height = (c.endPeriod - c.startPeriod + 1) * rowH - 4;
-              return (
-                <View key={c.id} style={[styles.block, { left: timeW + (c.weekday - 1) * dayW + 2, top, width: dayW - 4, height, backgroundColor: tint.bg }]}>
-                  <Text style={[styles.blockName, { color: tint.fg }]} numberOfLines={3}>{c.name}</Text>
-                  {c.location ? <Text style={[styles.blockMeta, { color: tint.fg }]} numberOfLines={2}>{c.location}</Text> : null}
-                </View>
-              );
-            })}
-          </View>
-        </View>
-        <Text style={styles.paperFoot}>知酷课程表 · 导出于 {new Date().toLocaleDateString()}</Text>
+      <View style={styles.previewHead}>
+        <Text style={styles.previewTitle}>完整周课表</Text>
+        <Text style={styles.previewHint}>已按屏幕宽度缩放，导出为 2 倍高清图</Text>
       </View>
-      </ScrollView>
+
+      <View style={[styles.previewBox, { height: previewH, width: previewW }]}>
+        <View style={{ width: BOARD_WIDTH, height: BOARD_HEIGHT, transform: [{ scale }], transformOrigin: "top left" }}>
+          <TimetableBoard table={active} week={week} periods={weekPeriods} />
+        </View>
+      </View>
+
+      <View style={styles.listCard}>
+        <Text style={styles.listTitle}>本周课程</Text>
+        {courses.length === 0 ? <Text style={styles.empty}>本周没有课程</Text> : null}
+        {courses.map((c) => (
+          <View key={c.id} style={styles.listRow}>
+            <Text style={styles.listDay}>周{WEEKDAYS[c.weekday - 1]}</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.listName}>{c.name}</Text>
+              <Text style={styles.listMeta}>第 {c.startPeriod}-{c.endPeriod} 节 · {formatTime(weekPeriods[c.startPeriod - 1]?.start)}-{formatTime(weekPeriods[c.endPeriod - 1]?.end)}{c.location ? " · " + c.location : ""}</Text>
+            </View>
+          </View>
+        ))}
+      </View>
 
       <View style={styles.actions}>
         <Pressable style={styles.action} onPress={exportImage} disabled={Boolean(busy)}>
-          {busy === "image" ? <ActivityIndicator color={colors.brand} /> : <Ionicons name="image-outline" size={18} color={colors.brand} />}
-          <Text style={styles.actionText}>导出图片</Text>
+          {busy === "image" ? <ActivityIndicator color={colors.brand} /> : <Ionicons name="image-outline" size={19} color={colors.brand} />}
+          <Text style={styles.actionText}>保存图片</Text>
         </Pressable>
         <Pressable style={styles.action} onPress={exportPdf} disabled={Boolean(busy)}>
-          {busy === "pdf" ? <ActivityIndicator color={colors.brand} /> : <Ionicons name="document-text-outline" size={18} color={colors.brand} />}
+          {busy === "pdf" ? <ActivityIndicator color={colors.brand} /> : <Ionicons name="document-text-outline" size={19} color={colors.brand} />}
           <Text style={styles.actionText}>导出 PDF</Text>
         </Pressable>
-        <Pressable style={styles.action} onPress={addToCalendar} disabled={Boolean(busy)}>
-          {busy === "calendar" ? <ActivityIndicator color={colors.brand} /> : <Ionicons name="calendar-outline" size={18} color={colors.brand} />}
+        <Pressable style={styles.action} onPress={openCalendar} disabled={Boolean(busy)}>
+          {busy === "calendar" ? <ActivityIndicator color={colors.brand} /> : <Ionicons name="calendar-outline" size={19} color={colors.brand} />}
           <Text style={styles.actionText}>加入系统日历</Text>
         </Pressable>
         <Pressable style={styles.action} onPress={exportIcs} disabled={Boolean(busy)}>
-          {busy === "ics" ? <ActivityIndicator color={colors.brand} /> : <Ionicons name="download-outline" size={18} color={colors.brand} />}
+          {busy === "ics" ? <ActivityIndicator color={colors.brand} /> : <Ionicons name="download-outline" size={19} color={colors.brand} />}
           <Text style={styles.actionText}>日历文件 .ics</Text>
         </Pressable>
       </View>
-      <Text style={styles.tip}>图片和 PDF 导出的是当前周；「加入系统日历」只写入本周课程；.ics 包含整学期全部课程，可导入任何日历 App。</Text>
+
+      <Text style={styles.tip}>图片和 PDF 导出当前周，包含完整 7 天和全部节次；「加入系统日历」可以只写本周，也可以写整学期；.ics 包含全部课程。</Text>
+
+      <View pointerEvents="none" style={styles.offscreen}>
+        <View ref={hiddenRef} collapsable={false} style={{ width: BOARD_WIDTH, height: BOARD_HEIGHT }}>
+          <TimetableBoard table={active} week={week} periods={weekPeriods} />
+        </View>
+      </View>
+
+      <Modal visible={calendarOpen} transparent animationType="slide" onRequestClose={() => setCalendarOpen(false)}>
+        <View style={styles.mask}>
+          <View style={styles.sheet}>
+            <View style={styles.sheetHead}>
+              <Text style={styles.sheetTitle}>加入系统日历</Text>
+              <Pressable onPress={() => setCalendarOpen(false)}><Ionicons name="close" size={22} color={colors.sub} /></Pressable>
+            </View>
+            <Text style={styles.sheetHint}>会写入系统默认日历，并带课前 10 分钟提醒。重复写入会产生重复日程。</Text>
+            <Pressable style={styles.primary} onPress={() => writeCalendar("week")}>
+              <Text style={styles.primaryText}>只写入本周课程</Text>
+            </Pressable>
+            <Pressable style={styles.ghost} onPress={() => writeCalendar("all")}>
+              <Text style={styles.ghostText}>写入整学期全部课程</Text>
+            </Pressable>
+            <Pressable style={styles.cancel} onPress={() => setCalendarOpen(false)}><Text style={styles.cancelText}>取消</Text></Pressable>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -210,25 +261,31 @@ const makeStyles = (colors: Colors) =>
     navBtn: { width: 34, height: 34, borderRadius: 9, backgroundColor: colors.chipBg, alignItems: "center", justifyContent: "center" },
     weekText: { fontSize: 15, fontWeight: "700", color: colors.ink },
     weekSub: { fontSize: 10.5, color: colors.faint, marginTop: 3 },
-    paper: { width: 760, backgroundColor: "#FFFFFF", borderRadius: 12, padding: 14, borderWidth: 1, borderColor: "#E6ECF6" },
-    scrollHint: { fontSize: 10.5, color: colors.faint, marginBottom: 8, marginLeft: 2 },
-    paperTitle: { fontSize: 17, fontWeight: "800", color: "#16233B" },
-    paperSub: { fontSize: 10, color: "#5C6B85", marginTop: 4, marginBottom: 10 },
-    grid: { width: "100%" },
-    headRow: { flexDirection: "row", backgroundColor: "#F3F7FF", borderTopLeftRadius: 6, borderTopRightRadius: 6, overflow: "hidden" },
-    headDay: { flex: 1, height: 30, alignItems: "center", justifyContent: "center", borderLeftWidth: 1, borderLeftColor: "#E8EEF8" },
-    headText: { fontSize: 11, color: "#1A6DFF", fontWeight: "700" },
-    timeCell: { height: "100%", alignItems: "center", justifyContent: "center", backgroundColor: "#FAFCFF", borderRightWidth: 1, borderRightColor: "#E8EEF8" },
-    periodNo: { fontSize: 10, fontWeight: "600", color: "#16233B" },
-    periodTime: { fontSize: 8, color: "#8A98B0", marginTop: 1 },
-    gridRow: { position: "absolute", left: 0, right: 0, flexDirection: "row", borderBottomWidth: 1, borderBottomColor: "#EDF2FA" },
-    cell: { flex: 1, borderLeftWidth: 1, borderLeftColor: "#EDF2FA" },
-    block: { position: "absolute", borderRadius: 4, padding: 3, overflow: "hidden" },
-    blockName: { fontSize: 12, fontWeight: "700", lineHeight: 16 },
-    blockMeta: { fontSize: 9.5, marginTop: 3, lineHeight: 13, opacity: 0.85 },
-    paperFoot: { fontSize: 8, color: "#8A98B0", marginTop: 10, textAlign: "right" },
-    actions: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 14 },
-    action: { width: "48%", flexGrow: 1, height: 52, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, alignItems: "center", justifyContent: "center", gap: 4 },
+    previewHead: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", marginBottom: 8 },
+    previewTitle: { fontSize: 13, fontWeight: "700", color: colors.ink },
+    previewHint: { fontSize: 9.5, color: colors.faint },
+    previewBox: { alignSelf: "center", borderRadius: 10, backgroundColor: "#FFFFFF", overflow: "hidden", borderWidth: 1, borderColor: colors.line, marginBottom: 12 },
+    listCard: { backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, padding: 14, marginBottom: 12 },
+    listTitle: { fontSize: 13, fontWeight: "700", color: colors.ink, marginBottom: 6 },
+    empty: { fontSize: 11, color: colors.faint, paddingVertical: 8 },
+    listRow: { flexDirection: "row", gap: 10, paddingVertical: 9, borderTopWidth: 1, borderTopColor: colors.line },
+    listDay: { width: 34, fontSize: 10.5, color: colors.brand, fontWeight: "600", paddingTop: 2 },
+    listName: { fontSize: 12.5, color: colors.ink, fontWeight: "600" },
+    listMeta: { fontSize: 10, color: colors.faint, marginTop: 3 },
+    actions: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+    action: { width: "48%", flexGrow: 1, height: 54, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, alignItems: "center", justifyContent: "center", gap: 4 },
     actionText: { fontSize: 11.5, color: colors.ink },
     tip: { fontSize: 10.5, color: colors.faint, lineHeight: 17, marginTop: 12 },
+    offscreen: { position: "absolute", left: -4000, top: 0, width: BOARD_WIDTH, height: BOARD_HEIGHT },
+    mask: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" },
+    sheet: { backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 18, paddingBottom: 28 },
+    sheetHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
+    sheetTitle: { fontSize: 16, fontWeight: "700", color: colors.ink },
+    sheetHint: { fontSize: 11.5, color: colors.faint, lineHeight: 18, marginBottom: 14 },
+    primary: { height: 46, borderRadius: radius.sm, backgroundColor: colors.brand, alignItems: "center", justifyContent: "center" },
+    primaryText: { color: "#FFFFFF", fontSize: 13.5, fontWeight: "600" },
+    ghost: { marginTop: 10, height: 46, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.fieldBorder, alignItems: "center", justifyContent: "center" },
+    ghostText: { fontSize: 13, color: colors.ink },
+    cancel: { marginTop: 8, height: 40, alignItems: "center", justifyContent: "center" },
+    cancelText: { fontSize: 12.5, color: colors.faint },
   });
