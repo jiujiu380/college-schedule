@@ -22,7 +22,7 @@ $anns = db()->query('SELECT id, title, content, pinned, created_at FROM announce
 <meta name="description" content="<?= e($seoDesc) ?>">
 <meta property="og:title" content="<?= e($name) ?>">
 <meta property="og:description" content="<?= e($seoDesc) ?>">
-<meta property="og:image" content="assets/shots/home.png?v=20261124">
+<meta property="og:image" content="assets/shots/home.png?v=20261124b">
 <style>
 :root{--blue:#1a6dff;--blue-dark:#0b4fc7;--blue-soft:#eef4ff;--ink:#16233b;--muted:#5c6b85;--faint:#8a98b0;--line:#e6ecf6;--bg:#fff;--r:18px}
 *{box-sizing:border-box}
@@ -155,7 +155,7 @@ footer{border-top:1px solid var(--line);margin-top:70px;background:#fff}
     </div>
   </div>
   <div class="phone-wrap">
-    <div class="phone"><img src="assets/shots/home.png?v=20261124" alt="知酷课程表主站"></div>
+    <div class="phone"><img src="assets/shots/home.png?v=20261124b" alt="知酷课程表主站"></div>
     <div class="chip one"><span class="dot"></span> 今日 3 节课</div>
     <div class="chip two">第 12 周 · 周三</div>
   </div>
@@ -180,9 +180,9 @@ footer{border-top:1px solid var(--line);margin-top:70px;background:#fff}
   <h2 class="sec-title">真正的界面</h2>
   <p class="sec-sub">干净、扁平，信息密度刚好；深浅色都耐看。</p>
   <div class="shots">
-    <div class="shot"><img src="assets/shots/schedule.png?v=20261124" alt="周课表"></div>
-    <div class="shot"><img src="assets/shots/calendar.png?v=20261124" alt="日历"></div>
-    <div class="shot"><img src="assets/shots/tools.png?v=20261124" alt="工具"></div>
+    <div class="shot"><img src="assets/shots/schedule.png?v=20261124b" alt="周课表"></div>
+    <div class="shot"><img src="assets/shots/calendar.png?v=20261124b" alt="日历"></div>
+    <div class="shot"><img src="assets/shots/tools.png?v=20261124b" alt="工具"></div>
   </div>
 </div></section>
 

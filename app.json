@@ -2,7 +2,7 @@
   "expo": {
     "name": "知酷课程表",
     "slug": "college-schedule",
-    "version": "1.3.6",
+    "version": "1.3.7",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "zhiku",
@@ -61,6 +61,12 @@
         "expo-location",
         {
           "locationWhenInUsePermission": "用于获取你所在位置的天气，仅在本机使用。"
+        }
+      ],
+      [
+        "expo-calendar",
+        {
+          "calendarPermission": "允许知酷课程表访问日历，用于写入课程安排"
         }
       ]
     ]

@@ -22,6 +22,7 @@ const GROUPS: { title: string; items: Item[] }[] = [
       { icon: "checkbox-outline", label: "作业 DDL", desc: "截止时间与逾期提醒", route: "/homework", tint: "#DC2626" },
       { icon: "timer-outline", label: "考试倒计时", desc: "最近考试还剩多久", route: "/exams", tint: "#0F766E" },
       { icon: "qr-code-outline", label: "课表分享", desc: "二维码 / 分享码导入", route: "/share", tint: "#7C3AED" },
+      { icon: "download-outline", label: "导出与日历", desc: "图片 / PDF / 系统日历", route: "/export", tint: "#0EA5E9" },
     ],
   },
   {

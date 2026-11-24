@@ -140,6 +140,7 @@ function ThemedRoot() {
                 <Stack.Screen name="homework" options={{ ...headerOptions, title: "作业 DDL" }} />
                 <Stack.Screen name="exams" options={{ ...headerOptions, title: "考试倒计时" }} />
                 <Stack.Screen name="share" options={{ ...headerOptions, title: "课表分享" }} />
+                <Stack.Screen name="export" options={{ ...headerOptions, title: "导出与日历" }} />
                 <Stack.Screen name="contact" options={{ ...headerOptions, title: "联系作者" }} />
                 <Stack.Screen name="announcements" options={{ ...headerOptions, title: "公告" }} />
                 <Stack.Screen name="tickets" options={{ ...headerOptions, title: "工单反馈" }} />
