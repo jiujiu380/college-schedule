@@ -1,68 +1,86 @@
 import { Ionicons } from "@expo/vector-icons";
-import React, { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { useRouter } from "expo-router";
+import React, { useCallback, useMemo, useState } from "react";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScreenStatusBar } from "../components/ScreenStatusBar";
+import { DailyNews, loadDailyNews } from "../lib/daily-news";
 import { useTheme } from "../lib/theme-context";
 import { Colors, radius } from "../theme";
 
-const API_KEY = "4CK7lafWehOO4uCkEHOmfH8Q1f";
-const BASE = "https://api.shwgij.com/api/today/newspic";
-
 export default function NewsScreen() {
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors, scheme } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { width } = useWindowDimensions();
+  const [data, setData] = useState<DailyNews | null>(null);
   const [loading, setLoading] = useState(true);
-  const [reload, setReload] = useState(0);
-  const [error, setError] = useState(false);
-  const [ratio, setRatio] = useState(900 / 2833);
-  const url = BASE + "?key=" + API_KEY + "&width=900&news_count=12&t=" + reload;
+  const [error, setError] = useState("");
 
-  useEffect(() => {
-    Image.getSize(
-      url,
-      (w, h) => {
-        if (w > 0 && h > 0) setRatio(w / h);
-      },
-      () => {},
-    );
-  }, [url]);
+  const load = useCallback(async (force = false) => {
+    setLoading(true);
+    setError("");
+    try {
+      setData(await loadDailyNews(force));
+    } catch (e) {
+      setError(String(e instanceof Error ? e.message : e));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    void load();
+  }, [load]);
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 28 }} showsVerticalScrollIndicator={false}>
       <ScreenStatusBar style={scheme === "dark" ? "light" : "dark"} />
 
-      <View style={styles.headRow}>
-        <View style={{ flex: 1 }} />
-        <Pressable style={styles.refreshBtn} onPress={() => { setLoading(true); setError(false); setReload((n) => n + 1); }}>
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.title}>每日新闻</Text>
+          <Text style={styles.sub}>{data?.date ? data.date + (data.created ? " · " + data.created.slice(11) : "") : "每天 60 秒读懂世界"}</Text>
+        </View>
+        <Pressable style={styles.refreshBtn} onPress={() => void load(true)}>
           <Ionicons name="refresh" size={15} color={colors.brand} />
           <Text style={styles.refreshText}>刷新</Text>
         </Pressable>
       </View>
 
-      <View style={[styles.imageCard, { width: width - 24 }]}>
-        {loading ? <ActivityIndicator color={colors.brand} style={{ position: "absolute", alignSelf: "center", top: 40 }} /> : null}
-        <Image
-          source={{ uri: url }}
-          style={{ width: "100%", aspectRatio: ratio }}
-          resizeMode="contain"
-          onLoad={(e) => {
-            const src: any = (e as any).nativeEvent?.source;
-            if (src?.width && src?.height) setRatio(src.width / src.height);
-            setLoading(false);
-            setError(false);
-          }}
-          onError={() => { setLoading(false); setError(true); }}
-        />
-      </View>
+      {loading && !data ? (
+        <View style={styles.center}><ActivityIndicator color={colors.brand} /><Text style={styles.hint}>正在获取今日新闻…</Text></View>
+      ) : null}
 
-      {error ? (
-        <View style={styles.errorBox}>
-          <Ionicons name="alert-circle-outline" size={16} color={colors.danger} />
-          <Text style={styles.errorText}>新闻图片加载失败，请检查网络后点「刷新」重试。</Text>
+      {error && !data ? (
+        <View style={styles.center}>
+          <Ionicons name="cloud-offline-outline" size={24} color={colors.faint} />
+          <Text style={styles.hint}>{error}</Text>
+          <Pressable style={styles.retry} onPress={() => void load(true)}><Text style={styles.retryText}>重试</Text></Pressable>
         </View>
+      ) : null}
+
+      {data ? (
+        <>
+          <View style={styles.list}>
+            {data.items.map((item, i) => (
+              <Pressable key={i} style={[styles.row, i !== data.items.length - 1 && styles.rowBorder]} onPress={() => router.push(`/news/${i}`)}>
+                <Text style={styles.no}>{String(i + 1).padStart(2, "0")}</Text>
+                <Text style={styles.item} numberOfLines={3}>{item}</Text>
+                <Ionicons name="chevron-forward" size={14} color={colors.faint} />
+              </Pressable>
+            ))}
+          </View>
+
+          {data.tip ? (
+            <View style={styles.tip}>
+              <Text style={styles.tipMark}>“</Text>
+              <Text style={styles.tipText}>{data.tip}</Text>
+            </View>
+          ) : null}
+
+          <Text style={styles.footer}>内容来自「60 秒读懂世界」，点击任意一条查看全文细节。</Text>
+        </>
       ) : null}
     </ScrollView>
   );
@@ -70,16 +88,22 @@ export default function NewsScreen() {
 
 const makeStyles = (colors: Colors) =>
   StyleSheet.create({
-    headRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10, paddingHorizontal: 2 },
-    title: { fontSize: 17, fontWeight: "700", color: colors.ink },
+    header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 14 },
+    title: { fontSize: 20, fontWeight: "800", color: colors.ink },
+    sub: { fontSize: 11, color: colors.faint, marginTop: 4 },
     refreshBtn: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: colors.brandSoft, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
     refreshText: { fontSize: 12, color: colors.brand, fontWeight: "600" },
-    imageCard: { alignSelf: "center", borderRadius: 14, overflow: "hidden", backgroundColor: colors.chipBg, marginBottom: 12 },
-    label: { fontSize: 11.5, color: colors.sub, marginTop: 14, marginBottom: 6 },
-    input: { height: 44, borderWidth: 1, borderColor: colors.fieldBorder, borderRadius: radius.sm, paddingHorizontal: 12, fontSize: 13, color: colors.ink, backgroundColor: colors.fieldBg },
-    primary: { marginTop: 14, height: 44, borderRadius: radius.sm, backgroundColor: colors.brand, alignItems: "center", justifyContent: "center" },
-    primaryText: { color: "#FFFFFF", fontSize: 13.5, fontWeight: "600" },
-    hint: { fontSize: 10.5, color: colors.faint, marginTop: 10, lineHeight: 16 },
-    errorBox: { flexDirection: "row", gap: 6, marginTop: 4, padding: 10, borderRadius: 8, backgroundColor: colors.warnBg },
-    errorText: { flex: 1, fontSize: 11, color: colors.warnText, lineHeight: 17 },
+    center: { alignItems: "center", paddingVertical: 50, gap: 10 },
+    hint: { fontSize: 12, color: colors.faint, textAlign: "center", lineHeight: 18, paddingHorizontal: 24 },
+    retry: { marginTop: 6, paddingHorizontal: 18, paddingVertical: 8, borderRadius: 8, backgroundColor: colors.brand },
+    retryText: { color: "#FFFFFF", fontSize: 12.5, fontWeight: "600" },
+    list: { backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, overflow: "hidden" },
+    row: { flexDirection: "row", alignItems: "flex-start", gap: 10, paddingHorizontal: 14, paddingVertical: 14 },
+    rowBorder: { borderBottomWidth: 1, borderBottomColor: colors.line },
+    no: { fontSize: 11, fontWeight: "700", color: colors.brand, width: 22, marginTop: 2 },
+    item: { flex: 1, fontSize: 13, lineHeight: 21, color: colors.ink },
+    tip: { flexDirection: "row", gap: 4, backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, padding: 14, marginTop: 12 },
+    tipMark: { fontSize: 24, color: colors.brand, lineHeight: 26, opacity: 0.5 },
+    tipText: { flex: 1, fontSize: 11.5, color: colors.sub, lineHeight: 19, marginTop: 2 },
+    footer: { fontSize: 10.5, color: colors.faint, textAlign: "center", marginTop: 14 },
   });

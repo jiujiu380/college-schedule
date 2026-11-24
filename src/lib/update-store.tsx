@@ -78,15 +78,11 @@ export function UpdateProvider({ children }: { children: React.ReactNode }) {
       const cached = await loadCachedCheck();
       if (!alive) return;
       if (cached) setResult(cached);
-      const stale = !cached || Date.now() - cached.checkedAt > SIX_HOURS;
-      if (stale) {
-        setTimeout(() => {
-          if (!alive) return;
-          void run(config).then((r) => {
-            if (alive && r) void notifyUpdate(r);
-          }).catch(() => {});
-        }, 900);
-      }
+      // 每次进入 App 都检测一次；有更新时由 UpdatePrompt 弹窗提示
+      setTimeout(() => {
+        if (!alive) return;
+        void run(config).catch(() => {});
+      }, 900);
     })();
     return () => {
       alive = false;

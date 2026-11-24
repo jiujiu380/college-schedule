@@ -13,6 +13,7 @@ import { TourProvider } from "../lib/tour";
 import { ScheduleProvider } from "../lib/schedule-store";
 import { ThemeProvider, useTheme } from "../lib/theme-context";
 import { UpdateProvider } from "../lib/update-store";
+import { UpdatePrompt } from "../components/UpdatePrompt";
 
 function AgreementGuard() {
   const pathname = usePathname();
@@ -109,6 +110,7 @@ function ThemedRoot() {
             >
               <AgreementGuard />
               <NotificationBridge />
+              <UpdatePrompt />
               <Stack
                 screenOptions={{
                   headerShown: false,
@@ -131,6 +133,7 @@ function ThemedRoot() {
                 <Stack.Screen name="account" options={{ ...headerOptions, title: "账号" }} />
                 <Stack.Screen name="forgot-password" options={{ ...headerOptions, title: "忘记密码" }} />
                 <Stack.Screen name="news" options={{ ...headerOptions, title: "每日新闻" }} />
+                <Stack.Screen name="news/[id]" options={{ ...headerOptions, title: "新闻详情" }} />
                 <Stack.Screen name="charity" options={{ ...headerOptions, title: "公益专栏" }} />
                 <Stack.Screen name="contact" options={{ ...headerOptions, title: "联系作者" }} />
                 <Stack.Screen name="announcements" options={{ ...headerOptions, title: "公告" }} />
