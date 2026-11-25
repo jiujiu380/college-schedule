@@ -56,7 +56,10 @@ export default function AgreementScreen() {
             ))}
           </View>
         ))}
-        <Text style={styles.end}>— 协议正文结束 —</Text>
+        <Text style={styles.end}>— 协议摘要结束 —</Text>
+        <Pressable style={styles.moreBtn} onPress={() => router.push("/about-you")}>
+          <Text style={styles.moreText}>查看完整协议：关于你（使用 / 注册 / 隐私 / 权限）</Text>
+        </Pressable>
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>
@@ -84,7 +87,7 @@ export default function AgreementScreen() {
         )}
         <View style={styles.safeRow}>
           <Ionicons name="lock-closed-outline" size={11} color={colors.faint} />
-          <Text style={styles.safeText}>您的账号与课表数据仅保存在本机</Text>
+          <Text style={styles.safeText}>课表默认仅保存在本机，登录后可选择云同步</Text>
         </View>
       </View>
     </View>
@@ -110,6 +113,8 @@ const makeStyles = (colors: Colors) =>
     primaryTextDisabled: { color: colors.faint },
     ghostBtn: { height: 36, alignItems: "center", justifyContent: "center", marginTop: 4 },
     ghostText: { fontSize: 12.5, color: colors.faint },
+    moreBtn: { marginTop: 18, paddingVertical: 12, paddingHorizontal: 14, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.fieldBorder, backgroundColor: colors.surface },
+    moreText: { fontSize: 12, color: colors.brand, textAlign: "center", lineHeight: 18 },
     safeRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, marginTop: 6 },
     safeText: { fontSize: 10.5, color: colors.faint },
   });

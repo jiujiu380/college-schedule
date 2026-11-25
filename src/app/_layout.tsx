@@ -21,7 +21,7 @@ function AgreementGuard() {
   const router = useRouter();
   useEffect(() => {
     let alive = true;
-    const isLegal = pathname.startsWith("/legal");
+    const isLegal = pathname.startsWith("/legal") || pathname.startsWith("/about-you");
     loadAgreed().then(async (ok) => {
       if (!alive) return;
       if (!ok) {
@@ -130,6 +130,7 @@ function ThemedRoot() {
                 <Stack.Screen name="backup" options={{ ...headerOptions, title: "备份与恢复" }} />
                 <Stack.Screen name="intro" options={{ headerShown: false }} />
                 <Stack.Screen name="legal" options={{ ...headerOptions, title: "协议" }} />
+                <Stack.Screen name="about-you" options={{ ...headerOptions, title: "关于你" }} />
                 <Stack.Screen name="developer" options={{ ...headerOptions, title: "开发者选项" }} />
                 <Stack.Screen name="background" options={{ ...headerOptions, title: "后台保活" }} />
                 <Stack.Screen name="account" options={{ ...headerOptions, title: "账号" }} />

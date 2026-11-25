@@ -316,9 +316,9 @@ export default function AccountScreen() {
                 </Pressable>
                 <Text style={styles.agreeText}>
                   我已阅读并同意
-                  <Text style={styles.link} onPress={() => router.push("/legal?doc=terms")}>《用户使用协议》</Text>
-                  <Text style={styles.link} onPress={() => router.push("/legal?doc=register")}>《用户注册协议》</Text>
-                  <Text style={styles.link} onPress={() => router.push("/legal?doc=privacy")}>《用户隐私政策》</Text>
+                  <Text style={styles.link} onPress={() => router.push("/about-you?doc=terms")}>《用户使用协议》</Text>
+                  <Text style={styles.link} onPress={() => router.push("/about-you?doc=register")}>《用户注册协议》</Text>
+                  <Text style={styles.link} onPress={() => router.push("/about-you?doc=privacy")}>《用户隐私政策》</Text>
                 </Text>
               </View>
             ) : null}

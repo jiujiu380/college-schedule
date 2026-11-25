@@ -249,9 +249,9 @@ export default function SettingsScreen() {
           <Text style={styles.rowValue}>通知不被清理</Text>
           <Ionicons name="chevron-forward" size={14} color={colors.faint} />
         </Pressable>
-        <Pressable style={[styles.row, styles.divider]} onPress={() => router.push("/agreement?view=1")}>
+        <Pressable style={[styles.row, styles.divider]} onPress={() => router.push("/about-you")}>
           <Ionicons name="document-text-outline" size={17} color={colors.sub} />
-          <Text style={styles.rowLabel}>用户协议与隐私政策</Text>
+          <Text style={styles.rowLabel}>关于你 · 协议与数据</Text>
           <Ionicons name="chevron-forward" size={14} color={colors.faint} />
         </Pressable>
         <Pressable style={styles.row} onPress={() => router.push("/sponsor")}>
