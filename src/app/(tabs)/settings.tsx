@@ -7,6 +7,7 @@ import { ScreenStatusBar } from "../../components/ScreenStatusBar";
 import { cancelAllReminders, ensureNotifyPermission, getLeadMinutes, isNotifyEnabled, scheduleClassReminders, setLeadMinutes, setNotifyEnabled } from "../../lib/notifications";
 import { useSchedule } from "../../lib/schedule-store";
 import { setAccent } from "../../lib/accent";
+import { useAppLock } from "../../lib/app-lock";
 import { AccountUser, getCachedAccount, refreshAccount } from "../../lib/account";
 import { getSiteBase } from "../../lib/site-api";
 import * as Notifications from "expo-notifications";
@@ -21,6 +22,7 @@ export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { mode, setMode, colors, scheme, accent, glass, setGlass } = useTheme();
+  const { enabled: appLockEnabled, setEnabled: setAppLock } = useAppLock();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const {
     tables, activeId, switchTable, addTable, deleteTable, updateTable,
@@ -254,6 +256,12 @@ export default function SettingsScreen() {
           <Ionicons name="phone-portrait-outline" size={17} color={colors.sub} />
           <Text style={styles.rowLabel}>后台保活 / 自启动</Text>
           <Text style={styles.rowValue}>通知不被清理</Text>
+          <Ionicons name="chevron-forward" size={14} color={colors.faint} />
+        </Pressable>
+        <Pressable style={[styles.row, styles.divider]} onPress={() => { void setAppLock(!appLockEnabled); }}>
+          <Ionicons name="lock-closed-outline" size={17} color={colors.sub} />
+          <Text style={styles.rowLabel}>应用锁</Text>
+          <Text style={styles.rowValue}>{appLockEnabled ? "已开启" : "未开启"}</Text>
           <Ionicons name="chevron-forward" size={14} color={colors.faint} />
         </Pressable>
         <Pressable style={[styles.row, styles.divider]} onPress={() => router.push("/about-you")}>

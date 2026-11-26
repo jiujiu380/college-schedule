@@ -129,6 +129,10 @@ export default function CourseDetail() {
           <Ionicons name="swap-horizontal-outline" size={16} color={colors.brand} />
           <Text style={styles.extraText}>调课</Text>
         </Pressable>
+        <Pressable style={styles.extraBtn} onPress={() => router.push(`/materials?courseId=${course.id}`)}>
+          <Ionicons name="folder-open-outline" size={16} color={colors.brand} />
+          <Text style={styles.extraText}>资料</Text>
+        </Pressable>
       </View>
 
       <View style={styles.actionRow}>
@@ -280,7 +284,7 @@ const makeStyles = (colors: Colors) =>
     deleteText: { color: colors.danger, fontSize: 13.5, fontWeight: "600" },
     extraRow: { flexDirection: "row", gap: 10, marginTop: 18 },
     extraBtn: { flex: 1, height: 44, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.infoBorder, backgroundColor: colors.brandSoft, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
-    extraText: { fontSize: 13, color: colors.brand, fontWeight: "600" },
+    extraText: { fontSize: 12, color: colors.brand, fontWeight: "600" },
     mask: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" },
     sheet: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 18, paddingBottom: 28 },
     sheetHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },

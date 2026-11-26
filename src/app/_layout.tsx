@@ -16,6 +16,7 @@ import { UpdateProvider } from "../lib/update-store";
 import { UpdatePrompt } from "../components/UpdatePrompt";
 import { BackupBootstrap } from "../components/BackupBootstrap";
 import { GlassBackdrop } from "../components/GlassBackdrop";
+import { AppLockProvider } from "../lib/app-lock";
 
 function AgreementGuard() {
   const pathname = usePathname();
@@ -38,6 +39,24 @@ function AgreementGuard() {
       alive = false;
     };
   }, [pathname, router]);
+  return null;
+}
+
+/** 桌面端 Ctrl/Cmd+K 打开全局搜索 */
+function GlobalSearchShortcut() {
+  const router = useRouter();
+  React.useEffect(() => {
+    if (Platform.OS !== "web") return;
+    const handler = (event: any) => {
+      if ((event.ctrlKey || event.metaKey) && String(event.key).toLowerCase() === "k") {
+        event.preventDefault();
+        router.push("/search");
+      }
+    };
+    const target = globalThis as any;
+    target.addEventListener("keydown", handler);
+    return () => target.removeEventListener("keydown", handler);
+  }, [router]);
   return null;
 }
 
@@ -114,6 +133,7 @@ function ThemedRoot() {
     <AuthProvider>
       <AppRefreshProvider><TourProvider><ScheduleProvider>
         <UpdateProvider>
+          <AppLockProvider>
           <NavigationThemeProvider value={navTheme}>
           <StatusBar style={scheme === "dark" ? "light" : "dark"} />
           <View style={{ flex: 1, backgroundColor: glass ? glassBase : (scheme === "dark" ? "#000000" : "#E4E6EA"), alignItems: "center" }}>
@@ -127,6 +147,7 @@ function ThemedRoot() {
               }}
             >
               {glass ? <GlassBackdrop scheme={scheme} /> : null}
+              <GlobalSearchShortcut />
               <AgreementGuard />
               <BackupBootstrap />
               <NotificationBridge />
@@ -149,6 +170,9 @@ function ThemedRoot() {
                 <Stack.Screen name="intro" options={{ headerShown: false }} />
                 <Stack.Screen name="legal" options={{ ...headerOptions, title: "协议" }} />
                 <Stack.Screen name="about-you" options={{ ...headerOptions, title: "关于你" }} />
+                <Stack.Screen name="search" options={{ ...headerOptions, title: "搜索" }} />
+                <Stack.Screen name="materials" options={{ ...headerOptions, title: "课程资料柜" }} />
+                <Stack.Screen name="stats" options={{ ...headerOptions, title: "学习统计" }} />
                 <Stack.Screen name="developer" options={{ ...headerOptions, title: "开发者选项" }} />
                 <Stack.Screen name="background" options={{ ...headerOptions, title: "后台保活" }} />
                 <Stack.Screen name="account" options={{ ...headerOptions, title: "账号" }} />
@@ -176,6 +200,7 @@ function ThemedRoot() {
             </View>
           </View>
           </NavigationThemeProvider>
+          </AppLockProvider>
         </UpdateProvider>
       </ScheduleProvider></TourProvider></AppRefreshProvider>
     </AuthProvider>

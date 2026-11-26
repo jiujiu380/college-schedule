@@ -2,7 +2,7 @@
   "expo": {
     "name": "知酷课程表",
     "slug": "college-schedule",
-    "version": "1.4.1",
+    "version": "1.4.2",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "zhiku",
@@ -68,6 +68,12 @@
         "expo-calendar",
         {
           "calendarPermission": "允许知酷课程表访问日历，用于写入课程安排"
+        }
+      ],
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "允许知酷课程表使用面容 ID 解锁应用"
         }
       ]
     ]

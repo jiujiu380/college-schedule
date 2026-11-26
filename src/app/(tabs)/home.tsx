@@ -115,7 +115,12 @@ export default function HomeScreen() {
       <FadeIn>
         <View style={styles.header}>
           <Text style={styles.date}>{formatToday()}</Text>
-          <Text style={styles.title}>今天</Text>
+          <View style={styles.titleRow}>
+            <Text style={styles.title}>今天</Text>
+            <Pressable style={styles.searchBtn} onPress={() => router.push("/search")} hitSlop={8}>
+              <Ionicons name="search" size={17} color={colors.sub} />
+            </Pressable>
+          </View>
           <View style={styles.metaRow}>
             <Text style={styles.meta}>{activeTable.name} · 第 {currentWeek} 周</Text>
             <Text style={styles.metaDot}>·</Text>
@@ -253,6 +258,8 @@ const makeStyles = (colors: Colors) =>
   StyleSheet.create({
     header: { paddingHorizontal: 18 },
     date: { fontSize: 12.5, color: colors.faint },
+    titleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+    searchBtn: { width: 36, height: 36, borderRadius: 11, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, alignItems: "center", justifyContent: "center" },
     title: { fontSize: 30, fontWeight: "800", color: colors.ink, marginTop: 6, letterSpacing: -0.8 },
     metaRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8 },
     meta: { fontSize: 12, color: colors.sub },

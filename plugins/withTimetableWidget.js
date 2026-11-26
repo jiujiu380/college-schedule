@@ -78,6 +78,30 @@ const TODAY_LAYOUT = `<?xml version="1.0" encoding="utf-8"?>
         android:textSize="10sp"
         android:textColor="#6B7280"
         android:layout_marginTop="2dp" />
+    <TextView
+        android:id="@+id/widget_today_next"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="10sp"
+        android:textStyle="bold"
+        android:textColor="#2F5BFF"
+        android:layout_marginTop="4dp"
+        android:maxLines="1"
+        android:ellipsize="end" />
+    <TextView
+        android:id="@+id/widget_today_remain"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="9sp"
+        android:textColor="#6B7280"
+        android:layout_marginTop="2dp" />
+    <Chronometer
+        android:id="@+id/widget_today_chrono"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="10sp"
+        android:textColor="#2F5BFF"
+        android:layout_marginTop="3dp" />
 __ROWS__
 </LinearLayout>`;
 
@@ -133,7 +157,7 @@ const INFO_WEEK = `<?xml version="1.0" encoding="utf-8"?>
 const INFO_TODAY = `<?xml version="1.0" encoding="utf-8"?>
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:minWidth="250dp"
-    android:minHeight="110dp"
+    android:minHeight="150dp"
     android:updatePeriodMillis="1800000"
     android:initialLayout="@layout/widget_today"
     android:resizeMode="horizontal|vertical"
@@ -208,6 +232,8 @@ import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
 import android.content.Context
+import android.os.Build
+import android.os.SystemClock
 import android.view.View
 import android.widget.RemoteViews
 
@@ -225,6 +251,18 @@ class TodayWidgetProvider : AppWidgetProvider() {
     val data = WidgetData.load(context)
     views.setTextViewText(id(context, "widget_today_title"), data?.optString("todayTitle") ?: "今天")
     views.setTextViewText(id(context, "widget_today_sub"), data?.optString("todaySub") ?: "打开应用同步课表")
+    views.setTextViewText(id(context, "widget_today_next"), data?.optString("nextText") ?: "")
+    views.setTextViewText(id(context, "widget_today_remain"), data?.optString("remainText") ?: "")
+    val nextAt = data?.optLong("nextAt") ?: 0L
+    val chronoId = id(context, "widget_today_chrono")
+    if (nextAt > 0) {
+      views.setViewVisibility(chronoId, View.VISIBLE)
+      val chronoBase = SystemClock.elapsedRealtime() + (nextAt - System.currentTimeMillis())
+      views.setChronometer(chronoId, chronoBase, (data?.optString("nextLabel") ?: "距上课") + " %s", true)
+      if (Build.VERSION.SDK_INT >= 24) views.setChronometerCountDown(chronoId, true)
+    } else {
+      views.setViewVisibility(chronoId, View.GONE)
+    }
 
     val items = data?.optJSONArray("todayItems")
     for (i in 0 until 6) {

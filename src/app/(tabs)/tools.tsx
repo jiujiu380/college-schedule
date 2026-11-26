@@ -23,11 +23,14 @@ const GROUPS: { title: string; items: Item[] }[] = [
       { icon: "timer-outline", label: "考试倒计时", desc: "最近考试还剩多久", route: "/exams", tint: "#0F766E" },
       { icon: "qr-code-outline", label: "课表分享", desc: "二维码 / 分享码导入", route: "/share", tint: "#7C3AED" },
       { icon: "download-outline", label: "导出与日历", desc: "图片 / PDF / 系统日历", route: "/export", tint: "#0EA5E9" },
+      { icon: "folder-open-outline", label: "课程资料柜", desc: "PPT / 照片 / 课堂笔记", route: "/materials", tint: "#D97706" },
+      { icon: "stats-chart-outline", label: "学习统计", desc: "课时 / 自习 / 作业完成率", route: "/stats", tint: "#0F766E" },
     ],
   },
   {
     title: "服务",
     items: [
+      { icon: "search-outline", label: "全局搜索", desc: "课程 / 作业 / 考试 / 备忘", route: "/search", tint: "#2563EB" },
       { icon: "megaphone-outline", label: "公告", desc: "官网发布的最新消息", route: "/announcements", tint: "#E11D48" },
       { icon: "chatbubbles-outline", label: "工单反馈", desc: "提交问题，查看回复", route: "/tickets", tint: "#7C3AED" },
       { icon: "save-outline", label: "备份与恢复", desc: "导出 / 导入全部课表", route: "/backup", tint: "#0EA5E9" },
