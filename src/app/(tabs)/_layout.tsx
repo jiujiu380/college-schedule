@@ -6,12 +6,13 @@ import { GlassTabBar } from "../../components/GlassTabBar";
 import { useTheme } from "../../lib/theme-context";
 
 export default function TabLayout() {
-  const { colors } = useTheme();
+  const { colors, glass } = useTheme();
 
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
+        sceneStyle: { backgroundColor: glass ? "transparent" : colors.bg },
         tabBarActiveTintColor: colors.ink,
         tabBarInactiveTintColor: colors.tabInactive,
         tabBarStyle: {

@@ -16,6 +16,12 @@ function today(): string {
   return d.getFullYear() + "-" + (d.getMonth() + 1) + "-" + d.getDate();
 }
 
+const BLOCKED = /性欲|做爱|色情|淫|强奸|勾引|约炮|自慰|生殖器|乳房|床事|情色|黄片|嫖娼|妓女|裸体|裸照|射精|高潮|血腥|虐杀|自杀|杀人/i;
+
+function safeQuote(text: string): boolean {
+  return Boolean(text) && !BLOCKED.test(text);
+}
+
 function decode(s: string): string {
   return s
     .replace(/<[^>]+>/g, "")
@@ -34,7 +40,7 @@ export async function loadQuote(force = false): Promise<string> {
       const raw = await AsyncStorage.getItem(KEY);
       if (raw) {
         const cache = JSON.parse(raw) as Cache;
-        if (cache.date === today() && cache.text) return cache.text;
+        if (cache.date === today() && cache.text && safeQuote(cache.text)) return cache.text;
       }
     }
   } catch {
@@ -44,11 +50,12 @@ export async function loadQuote(force = false): Promise<string> {
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 8000);
-    const res = await fetch("https://v.api.aa1.cn/api/yiyan/index.php", { signal: controller.signal });
+    const res = await fetch("https://v1.hitokoto.cn/?c=d&c=i&c=k&encode=json", { signal: controller.signal });
     clearTimeout(timer);
     if (res.ok) {
-      const text = decode(await res.text());
-      if (text) {
+      const json: any = await res.json();
+      const text = decode(String(json?.hitokoto ?? ""));
+      if (text && safeQuote(text)) {
         await AsyncStorage.setItem(KEY, JSON.stringify({ date: today(), text })).catch(() => {});
         return text;
       }

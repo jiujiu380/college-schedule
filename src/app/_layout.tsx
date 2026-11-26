@@ -1,7 +1,7 @@
 import * as Notifications from "expo-notifications";
-import { Stack, usePathname, useRouter } from "expo-router";
+import { DarkTheme, DefaultTheme, ThemeProvider as NavigationThemeProvider, Stack, usePathname, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import { Platform, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { loadAgreed } from "../lib/agreement";
@@ -15,6 +15,7 @@ import { ThemeProvider, useTheme } from "../lib/theme-context";
 import { UpdateProvider } from "../lib/update-store";
 import { UpdatePrompt } from "../components/UpdatePrompt";
 import { BackupBootstrap } from "../components/BackupBootstrap";
+import { GlassBackdrop } from "../components/GlassBackdrop";
 
 function AgreementGuard() {
   const pathname = usePathname();
@@ -85,11 +86,26 @@ export default function RootLayout() {
 }
 
 function ThemedRoot() {
-  const { colors, scheme } = useTheme();
+  const { colors, scheme, glass, glassBase } = useTheme();
+  const navTheme = useMemo(() => {
+    const base = scheme === "dark" ? DarkTheme : DefaultTheme;
+    return {
+      ...base,
+      colors: {
+        ...base.colors,
+        primary: colors.brand,
+        background: glass ? "transparent" : colors.bg,
+        card: glass ? "transparent" : colors.surface,
+        text: colors.ink,
+        border: colors.line,
+        notification: colors.brand,
+      },
+    };
+  }, [scheme, glass, colors]);
   const headerOptions = {
     headerShown: true,
     headerShadowVisible: true,
-    headerStyle: { backgroundColor: colors.surface },
+    headerStyle: { backgroundColor: glass ? (scheme === "dark" ? "rgba(10,14,24,0.92)" : "rgba(247,250,255,0.92)") : colors.surface },
     headerTintColor: colors.ink,
     headerTitleStyle: { fontSize: 15, fontWeight: "600" as const },
   };
@@ -98,17 +114,19 @@ function ThemedRoot() {
     <AuthProvider>
       <AppRefreshProvider><TourProvider><ScheduleProvider>
         <UpdateProvider>
+          <NavigationThemeProvider value={navTheme}>
           <StatusBar style={scheme === "dark" ? "light" : "dark"} />
-          <View style={{ flex: 1, backgroundColor: scheme === "dark" ? "#000000" : "#E4E6EA", alignItems: "center" }}>
+          <View style={{ flex: 1, backgroundColor: glass ? glassBase : (scheme === "dark" ? "#000000" : "#E4E6EA"), alignItems: "center" }}>
             <View
               style={{
                 flex: 1,
                 width: "100%",
                 maxWidth: Platform.OS === "web" ? 1100 : undefined,
-                backgroundColor: colors.surface,
+                backgroundColor: glass ? "transparent" : colors.surface,
                 overflow: "hidden",
               }}
             >
+              {glass ? <GlassBackdrop scheme={scheme} /> : null}
               <AgreementGuard />
               <BackupBootstrap />
               <NotificationBridge />
@@ -157,6 +175,7 @@ function ThemedRoot() {
               </Stack>
             </View>
           </View>
+          </NavigationThemeProvider>
         </UpdateProvider>
       </ScheduleProvider></TourProvider></AppRefreshProvider>
     </AuthProvider>

@@ -20,7 +20,7 @@ import { Colors, ThemeMode, radius } from "../../theme";
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { mode, setMode, colors, scheme, accent } = useTheme();
+  const { mode, setMode, colors, scheme, accent, glass, setGlass } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const {
     tables, activeId, switchTable, addTable, deleteTable, updateTable,
@@ -188,6 +188,13 @@ export default function SettingsScreen() {
             );
           })}
         </ScrollView>
+        <View style={[styles.row, { borderTopWidth: 1, borderTopColor: colors.line }]}>
+          <View style={{ flex: 1, paddingRight: 12 }}>
+            <Text style={styles.rowLabel}>液态玻璃</Text>
+            <Text style={styles.glassDesc}>半透明卡片与柔和光斑，自动跟随日间 / 夜间模式</Text>
+          </View>
+          <Switch value={glass} onValueChange={setGlass} trackColor={{ true: colors.brand, false: colors.line }} thumbColor={glass ? "#FFFFFF" : colors.faint} />
+        </View>
         {stepper("格子高度", ui.rowHeight, 72, 132, 8, (v) => updateTable({ ui: { ...ui, rowHeight: v } }))}
         {stepper("圆角", ui.radius, 0, 10, 1, (v) => updateTable({ ui: { ...ui, radius: v } }))}
         {stepper("透明度", ui.opacity, 0.5, 1, 0.05, (v) => updateTable({ ui: { ...ui, opacity: v } }), (v) => `${Math.round(v * 100)}%`)}
@@ -278,6 +285,7 @@ const makeStyles = (colors: Colors) =>
     section: { fontSize: 12, color: colors.faint, marginTop: 22, marginBottom: 2, marginLeft: 18 },
     row: { flexDirection: "row", alignItems: "center", paddingHorizontal: 14, paddingVertical: 13, gap: 10 },
     divider: { borderBottomWidth: 1, borderBottomColor: colors.line },
+    glassDesc: { fontSize: 10, color: colors.faint, marginTop: 3, lineHeight: 15 },
     rowLabel: { flex: 1, fontSize: 13.5, color: colors.ink },
     rowSub: { fontSize: 10.5, color: colors.faint, marginTop: 3 },
     rowValue: { fontSize: 12, color: colors.faint },

@@ -68,6 +68,41 @@ export function mixHex(a: string, b: string, ratio: number): string {
   return "#" + ch(16) + ch(8) + ch(0);
 }
 
+export const glassLightColors: Colors = {
+  ...lightColors,
+  bg: "transparent",
+  surface: "rgba(255,255,255,0.62)",
+  line: "rgba(255,255,255,0.65)",
+  lineSoft: "rgba(255,255,255,0.38)",
+  fieldBg: "rgba(255,255,255,0.55)",
+  fieldBorder: "rgba(255,255,255,0.82)",
+  chipBg: "rgba(255,255,255,0.42)",
+  chipBorder: "rgba(255,255,255,0.6)",
+  chipActiveBg: "rgba(255,255,255,0.72)",
+  overlay: "rgba(255,255,255,0.25)",
+};
+
+export const glassDarkColors: Colors = {
+  ...darkColors,
+  bg: "transparent",
+  surface: "rgba(20,27,43,0.60)",
+  ink: "#F4F8FF",
+  sub: "#C2CEE2",
+  faint: "#96A4BA",
+  line: "rgba(255,255,255,0.10)",
+  lineSoft: "rgba(255,255,255,0.06)",
+  fieldBg: "rgba(255,255,255,0.06)",
+  fieldBorder: "rgba(255,255,255,0.14)",
+  chipBg: "rgba(255,255,255,0.07)",
+  chipBorder: "rgba(255,255,255,0.10)",
+  chipActiveBg: "rgba(255,255,255,0.12)",
+  overlay: "rgba(255,255,255,0.08)",
+};
+
+export function glassColorsOf(scheme: Scheme): Colors {
+  return scheme === "dark" ? glassDarkColors : glassLightColors;
+}
+
 export function colorsOf(scheme: Scheme): Colors {
   return scheme === "dark" ? darkColors : lightColors;
 }
