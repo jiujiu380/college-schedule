@@ -20,6 +20,15 @@ export function GlassTabBar({ state, navigation, navigateToTab }: { state: TabBa
   const { colors, scheme } = useTheme();
   const router = useRouter();
   const pathname = usePathname();
+  const normalizedPath = pathname.split("?")[0].replace(/^\/\(tabs\)/, "");
+  const isTabRoute = ["/home", "/schedule", "/tools", "/settings"].includes(normalizedPath);
+  const wasTabRoute = useRef(isTabRoute);
+  const [glassEpoch, setGlassEpoch] = useState(0);
+
+  useEffect(() => {
+    if (isTabRoute && !wasTabRoute.current) setGlassEpoch((v) => v + 1);
+    wasTabRoute.current = isTabRoute;
+  }, [isTabRoute]);
   const insets = useSafeAreaInsets();
   const dark = scheme === "dark";
   const [width, setWidth] = useState(0);
@@ -59,7 +68,7 @@ export function GlassTabBar({ state, navigation, navigateToTab }: { state: TabBa
     return (
       <View pointerEvents="box-none" style={[styles.wrap, { bottom: Math.max(insets.bottom, 10) }]}>
         <AndroidGlassBottomTabs
-          key={"glass-" + state.index + "-" + pathname}
+          key={"glass-" + glassEpoch}
           theme={dark ? "dark" : "light"}
           accentColor={colors.brand}
           selectedIndex={state.index}
