@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
+import { AndroidGlassBottomTabs, AndroidGlassTab } from "expo-android-glass-view";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import { Animated, Platform, Pressable, StyleSheet, Text, View } from "react-native";
@@ -35,11 +36,56 @@ export function GlassTabBar({ state, navigation, navigateToTab }: { state: TabBa
     outputRange: [7, 7 + Math.max(0, count - 1) * itemW],
   });
 
+  const selectTab = (i: number) => {
+    const route = state.routes[i];
+    if (!route || i === state.index) return;
+    try {
+      if (typeof navigateToTab === "function") {
+        navigateToTab(route.key);
+        return;
+      }
+      if (navigation && typeof navigation.navigate === "function") {
+        navigation.navigate(route.name);
+        return;
+      }
+      router.navigate("/" + route.name);
+    } catch {
+      router.navigate("/" + route.name);
+    }
+  };
+
+  if (Platform.OS === "android") {
+    return (
+      <View pointerEvents="box-none" style={[styles.wrap, { bottom: Math.max(insets.bottom, 10) }]}>
+        <AndroidGlassBottomTabs
+          theme={dark ? "dark" : "light"}
+          accentColor={colors.brand}
+          selectedIndex={state.index}
+          onTabSelected={selectTab}
+          style={styles.nativeBar}
+        >
+          {state.routes.map((route: { key: string; name: string }, i: number) => {
+            const meta = META[route.name] ?? META.home;
+            const focused = state.index === i;
+            return (
+              <AndroidGlassTab
+                key={route.key}
+                label={meta.label}
+                labelStyle={{ color: focused ? colors.brand : colors.sub, fontSize: 10.5, fontWeight: focused ? "600" : "500" }}
+                icon={<Ionicons name={focused ? meta.active : meta.idle} size={21} color={focused ? colors.brand : colors.sub} />}
+              />
+            );
+          })}
+        </AndroidGlassBottomTabs>
+      </View>
+    );
+  }
+
   return (
     <View pointerEvents="box-none" style={[styles.wrap, { bottom: Math.max(insets.bottom, 10) }]}>
       <View style={[styles.bar, dark ? styles.barDark : styles.barLight]}>
         <BlurView
-          intensity={Platform.OS === "android" ? 110 : 70}
+          intensity={70}
           tint={dark ? "dark" : "light"}
           experimentalBlurMethod="dimezisBlurView"
           style={StyleSheet.absoluteFill}
@@ -107,6 +153,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 10 },
     elevation: 24,
   },
+  nativeBar: { height: 64, borderRadius: 32, shadowColor: "#0B1220", shadowOpacity: 0.2, shadowRadius: 22, shadowOffset: { width: 0, height: 10 }, elevation: 20 },
   barLight: { borderColor: "rgba(255,255,255,0.9)" },
   barDark: { borderColor: "rgba(255,255,255,0.10)" },
   edge: { borderRadius: 30, borderWidth: 1 },

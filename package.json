@@ -1,11 +1,12 @@
 {
   "name": "college-schedule",
-  "version": "1.4.2",
+  "version": "1.4.3",
   "main": "expo-router/entry",
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
     "@react-native-async-storage/async-storage": "2.2.0",
     "expo": "~58.0.26",
+    "expo-android-glass-view": "1.0.2",
     "expo-blur": "~58.0.6",
     "expo-calendar": "~58.0.8",
     "expo-clipboard": "~58.0.4",
