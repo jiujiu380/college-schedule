@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { AndroidGlassBottomTabs, AndroidGlassTab } from "expo-android-glass-view";
-import { useRouter } from "expo-router";
+import { usePathname, useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import { Animated, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -19,6 +19,7 @@ type TabBarState = { index: number; routes: { key: string; name: string }[] };
 export function GlassTabBar({ state, navigation, navigateToTab }: { state: TabBarState; navigation?: any; navigateToTab?: (key: string) => void }) {
   const { colors, scheme } = useTheme();
   const router = useRouter();
+  const pathname = usePathname();
   const insets = useSafeAreaInsets();
   const dark = scheme === "dark";
   const [width, setWidth] = useState(0);
@@ -58,6 +59,7 @@ export function GlassTabBar({ state, navigation, navigateToTab }: { state: TabBa
     return (
       <View pointerEvents="box-none" style={[styles.wrap, { bottom: Math.max(insets.bottom, 10) }]}>
         <AndroidGlassBottomTabs
+          key={"glass-" + state.index + "-" + pathname}
           theme={dark ? "dark" : "light"}
           accentColor={colors.brand}
           selectedIndex={state.index}
